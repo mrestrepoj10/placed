@@ -23,6 +23,7 @@ Key decisions and the research behind them: see [DESIGN.md](./DESIGN.md).
 You need an Autodesk Platform Services app and a Vercel project.
 
 1. **Create an APS app** at [aps.autodesk.com](https://aps.autodesk.com) → *Applications*. Enable the **Autodesk Construction Cloud API** category. You'll set its Callback URL in step 3.
+   - **Then provision it into the account you want to read**: an Account Admin adds the app's Client ID under **Account Admin → Apps / Custom Integrations** (ACC) or **Settings → Custom Integrations** (BIM 360). Without this, the hub silently doesn't appear in the project list — no error, just an empty page.
 2. **Deploy this repo to Vercel** (fork → import).
 3. **Create the Connect connector**: in the Vercel project, open **Connect** → *Create Connector* → **OAuth** → server URL `developer.api.autodesk.com` (endpoint discovery fills in the rest) → paste your APS client ID + secret → name it `autodesk`. Enable the **authorization-code** grant (connector → Edit → grant types). ⚠️ Copy the **redirect URI shown during creation** into your APS app's Callback URL — this URL only appears in that flow.
 4. That's it — no other env vars. (Optionally set `CONNECT_CONNECTOR` if you named the connector something other than `oauth/autodesk`.)
