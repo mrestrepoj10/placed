@@ -12,7 +12,18 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Copied MapLibre worker bundles, not our code:
+    "public/*.mjs",
   ]),
+  {
+    // Vendored from the mapcn registry; predates react-hooks v6 strict rules.
+    // Relax only the new rules here — our forks still follow them elsewhere.
+    files: ["components/ui/map.tsx"],
+    rules: {
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -178,7 +178,9 @@ export function PhotoMap({
   // Debounced shareable-viewport sync — shallow, never a server roundtrip
   const viewportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedIdRef = useRef(selectedId);
-  selectedIdRef.current = selectedId;
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
   const handleViewportChange = useCallback((viewport: MapViewport) => {
     if (viewportTimer.current) clearTimeout(viewportTimer.current);
     viewportTimer.current = setTimeout(() => {
