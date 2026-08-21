@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { ConnectCard, SetupCard } from "@/components/connect-card";
@@ -38,6 +39,8 @@ async function ProjectView({
 }: {
   params: PageProps<"/p/[projectId]">["params"];
 }) {
+  // Request-time only — see ProjectList in app/projects/page.tsx
+  await connection();
   const { projectId } = await params;
   const visitorId = await getVisitorId();
   if (!visitorId) {

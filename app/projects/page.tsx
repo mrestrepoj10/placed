@@ -1,6 +1,7 @@
 import { ChevronRight, FolderOpen } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { ConnectCard, SetupCard } from "@/components/connect-card";
@@ -48,6 +49,9 @@ function ProjectsSkeleton() {
 }
 
 async function ProjectList() {
+  // Request-time only: the token layer's cache reads Date.now(), which the
+  // Cache Components prerenderer rejects during shell generation.
+  await connection();
   const visitorId = await getVisitorId();
   if (!visitorId) {
     return <ConnectCard returnTo="/projects" />;

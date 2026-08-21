@@ -20,7 +20,10 @@ import { revokeToken, startAuthorization } from "@vercel/connect";
  * contract — they stay on @vercel/connect directly.
  */
 
-const CONNECTOR = process.env.CONNECT_CONNECTOR ?? "oauth/autodesk";
+// Custom OAuth connector UIDs are `<oauth-server-host>/<connector-name>`,
+// so a connector named `autodesk` against APS always gets this UID.
+const CONNECTOR =
+  process.env.CONNECT_CONNECTOR ?? "developer.api.autodesk.com/autodesk";
 const SCOPES = ["data:read"];
 
 const tokens = connectTokenSource({ connectors: { aps: CONNECTOR } });

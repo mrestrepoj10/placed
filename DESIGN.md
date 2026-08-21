@@ -83,8 +83,8 @@ Next.js **16.3.2** (Cache Components + Partial Prefetching enabled), TypeScript,
 
 ### Auth (Connect-native)
 
-- One Custom OAuth connector (`oauth/autodesk`) holding the deployer's APS app credentials; authorization-code grant enabled.
-- Signed httpOnly cookie → random visitor ID → `getToken('oauth/autodesk', { subject: { type: 'user', id }, scopes: ['data:read'] })` in server code only (`import 'server-only'`).
+- One Custom OAuth connector (`developer.api.autodesk.com/autodesk`) holding the deployer's APS app credentials; authorization-code grant enabled.
+- Signed httpOnly cookie → random visitor ID → `getToken(connector, { subject: { type: 'user', id }, scopes: ['data:read'] })` in server code only (`import 'server-only'`).
 - First use: catch `UserAuthorizationRequiredError` → `startAuthorization` → `redirect(url)`. Disconnect button → `revokeToken`.
 - **Seam**: the ACC data layer depends on a `getAccessToken(visitorId)` interface so a non-Vercel deployer could swap in a hand-rolled provider. Build the seam, not the fallback.
 - `proxy.ts` (not middleware.ts) stays a thin cookie-presence gate. No token exchange in proxy, no token in props/context/`NEXT_PUBLIC`, no direct browser→ACC calls. Ever.
