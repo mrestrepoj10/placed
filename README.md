@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# placed
 
-## Getting Started
+**Photos, placed.** Connect a construction project → see where every field photo happened.
 
-First, run the development server:
+Placed is a lightweight, open-source spatial viewer for geolocated field photos. It reads photo metadata from Autodesk Construction Cloud (Autodesk Build Photos), drops every geotagged photo onto an interactive map — clustered, streamed in progressively, colored by the module it came from (Issues, RFIs, Forms, field reports…) — and deep-links back to ACC. ACC stays the system of record: **no images are duplicated, nothing is stored.**
+
+- **Try it with zero setup:** the `/demo` route runs on a synthetic project — no Autodesk account needed.
+- **Zero API keys to fork:** basemaps come from [OpenFreeMap](https://openfreemap.org) (no key, no usage cap, commercial-OK).
+
+## How it works
+
+- **Next.js 16** (Cache Components + Partial Prefetching): static shells, dynamic content streamed behind Suspense.
+- **Auth is [Vercel Connect](https://vercel.com/docs/connect)** (beta): a Custom OAuth connector runs Autodesk's 3-legged flow, stores and rotates the refresh tokens on Vercel's side. This app's only session state is an httpOnly cookie with a random visitor id — it never sees a refresh token. The data layer depends on a small `getAccessToken(visitorId)` seam (`lib/auth/access-token.ts`), so a non-Vercel deployment can swap in its own token provider.
+- **Photo metadata** streams through a route handler proxying ACC's cursor pagination (max 50/page, serial); the map densifies as pages arrive. APS tokens never reach the browser.
+- **Thumbnails**: ACC's signed URLs expire in ~60 seconds, so `<img>` tags point at a proxy route that fetches a fresh signed URL and 302-redirects. No client-side expiry bookkeeping, no caching of signed URLs.
+- **Map**: [MapLibre GL](https://maplibre.org) via a locally-owned [mapcn](https://mapcn.dev) component (worker self-hosted, category-colored cluster layer). Photos render as canvas layers, not DOM markers.
+- **No database.** Photo visibility is per-user (3-legged only — the Photos API has no service mode), there are no ACC photo webhooks, and signed URLs can't be cached — so a mirror would be pure cost. Every session reads live.
+
+Key decisions and the research behind them: see [DESIGN.md](./DESIGN.md).
+
+## Deploy your own
+
+You need an Autodesk Platform Services app and a Vercel project.
+
+1. **Create an APS app** at [aps.autodesk.com](https://aps.autodesk.com) → *Applications*. Enable the **Autodesk Construction Cloud API** category. You'll set its Callback URL in step 3.
+2. **Deploy this repo to Vercel** (fork → import).
+3. **Create the Connect connector**: in the Vercel project, open **Connect** → *Create Connector* → **OAuth** → server URL `developer.api.autodesk.com` (endpoint discovery fills in the rest) → paste your APS client ID + secret → name it `autodesk`. Enable the **authorization-code** grant (connector → Edit → grant types). ⚠️ Copy the **redirect URI shown during creation** into your APS app's Callback URL — this URL only appears in that flow.
+4. That's it — no other env vars. (Optionally set `CONNECT_CONNECTOR` if you named the connector something other than `oauth/autodesk`.)
+
+### Local development
 
 ```bash
+npm install
+vercel link && vercel env pull   # gets the dev-environment OIDC token
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Works with plain `next dev`; re-run `vercel env pull` if the OIDC token expires (~12h).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Notes & limitations
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Vercel Connect is in beta; the free tier includes 5,000 token requests/month.
+- Photos only appear on the map if their EXIF data carries coordinates (mobile captures with location services on). Placed always shows the honest count — "N of M photos have location" — and lists the rest.
+- The Photos API is read-only and 3-legged only: every viewer signs in with their own Autodesk account and sees exactly what their account can see.
 
-## Learn More
+## License
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[MIT](./LICENSE)
