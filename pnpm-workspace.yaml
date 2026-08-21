@@ -1,0 +1,6 @@
+# unrs-resolver ships prebuilt platform binaries; its build script is unneeded.
+allowBuilds:
+  unrs-resolver: false
+# This project intentionally tracks same-day releases (Next 16.x, shadcn),
+# so the global minimum-release-age supply-chain gate is relaxed here.
+minimumReleaseAge: 0

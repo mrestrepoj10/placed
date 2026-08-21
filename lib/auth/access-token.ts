@@ -1,30 +1,34 @@
 import "server-only";
 
-import {
-  getToken,
-  revokeToken,
-  startAuthorization,
-  UserAuthorizationRequiredError,
-} from "@vercel/connect";
+import { TokenError } from "aec-auth";
+import { connectTokenSource } from "aec-auth/connect";
+import { revokeToken, startAuthorization } from "@vercel/connect";
 
 /**
  * The auth seam. Everything that talks to Autodesk depends on this module's
- * interface — not on @vercel/connect — so a non-Vercel deployment can swap in
- * a hand-rolled token provider without touching the data layer.
+ * interface, so a non-Vercel deployment can swap the backend without touching
+ * the data layer.
  *
- * The current implementation uses a Vercel Connect Custom OAuth connector:
+ * Token acquisition runs through aec-auth's Vercel Connect TokenSource:
  * Vercel hosts the OAuth handshake, stores the (single-use, rotating) APS
- * refresh tokens, and auto-refreshes. This code only ever sees short-lived
- * access tokens.
+ * refresh tokens, and auto-refreshes; aec-auth adds an in-process,
+ * expiry-aware cache with single-flight de-duplication on top (Connect bills
+ * per token request). Swapping to another aec-auth backend (self-hosted
+ * vault, Better Auth) means changing only `tokens` below.
+ *
+ * Consent kickoff and revocation are deliberately outside the TokenSource
+ * contract — they stay on @vercel/connect directly.
  */
 
 const CONNECTOR = process.env.CONNECT_CONNECTOR ?? "oauth/autodesk";
 const SCOPES = ["data:read"];
 
+const tokens = connectTokenSource({ connectors: { aps: CONNECTOR } });
+
 /** Thrown when the visitor has not yet authorized Autodesk access. */
 export class AuthorizationRequiredError extends Error {
-  constructor() {
-    super("Visitor has not authorized Autodesk access");
+  constructor(cause?: unknown) {
+    super("Visitor has not authorized Autodesk access", { cause });
     this.name = "AuthorizationRequiredError";
   }
 }
@@ -52,16 +56,25 @@ function isConfigurationError(error: unknown): boolean {
 /** A short-lived APS access token for this visitor's Autodesk grant. */
 export async function getAccessToken(visitorId: string): Promise<string> {
   try {
-    return await getToken(CONNECTOR, {
+    const { token } = await tokens.getToken({
+      provider: "aps",
       subject: { type: "user", id: visitorId },
       scopes: SCOPES,
     });
+    return token;
   } catch (error) {
-    if (error instanceof UserAuthorizationRequiredError) {
-      throw new AuthorizationRequiredError();
-    }
-    if (isConfigurationError(error)) {
-      throw new ConnectNotConfiguredError(error);
+    if (error instanceof TokenError) {
+      // grant_invalid (revoked / >15-day-idle refresh chain) needs the same
+      // remedy as no grant at all: send the visitor back through consent.
+      if (error.code === "consent_required" || error.code === "grant_invalid") {
+        throw new AuthorizationRequiredError(error);
+      }
+      if (error.code === "not_configured") {
+        throw new ConnectNotConfiguredError(error);
+      }
+      if (isConfigurationError(error.cause)) {
+        throw new ConnectNotConfiguredError(error);
+      }
     }
     throw error;
   }

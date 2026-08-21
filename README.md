@@ -10,7 +10,7 @@ Placed is a lightweight, open-source spatial viewer for geolocated field photos.
 ## How it works
 
 - **Next.js 16** (Cache Components + Partial Prefetching): static shells, dynamic content streamed behind Suspense.
-- **Auth is [Vercel Connect](https://vercel.com/docs/connect)** (beta): a Custom OAuth connector runs Autodesk's 3-legged flow, stores and rotates the refresh tokens on Vercel's side. This app's only session state is an httpOnly cookie with a random visitor id — it never sees a refresh token. The data layer depends on a small `getAccessToken(visitorId)` seam (`lib/auth/access-token.ts`), so a non-Vercel deployment can swap in its own token provider.
+- **Auth is [aec-auth](https://www.npmjs.com/package/aec-auth) over [Vercel Connect](https://vercel.com/docs/connect)** (beta): a Custom OAuth connector runs Autodesk's 3-legged flow, storing and rotating the refresh tokens on Vercel's side, while aec-auth's `TokenSource` adds an in-process, expiry-aware token cache with single-flight de-duplication (Connect bills per token request). This app's only session state is an httpOnly cookie with a random visitor id — it never sees a refresh token. The data layer depends on a small `getAccessToken(visitorId)` seam (`lib/auth/access-token.ts`); a non-Vercel deployment swaps in another aec-auth backend (self-hosted vault, Better Auth) by changing one line.
 - **Photo metadata** streams through a route handler proxying ACC's cursor pagination (max 50/page, serial); the map densifies as pages arrive. APS tokens never reach the browser.
 - **Thumbnails**: ACC's signed URLs expire in ~60 seconds, so `<img>` tags point at a proxy route that fetches a fresh signed URL and 302-redirects. No client-side expiry bookkeeping, no caching of signed URLs.
 - **Map**: [MapLibre GL](https://maplibre.org) via a locally-owned [mapcn](https://mapcn.dev) component (worker self-hosted, category-colored cluster layer). Photos render as canvas layers, not DOM markers.
@@ -30,9 +30,9 @@ You need an Autodesk Platform Services app and a Vercel project.
 ### Local development
 
 ```bash
-npm install
+pnpm install
 vercel link && vercel env pull   # gets the dev-environment OIDC token
-npm run dev
+pnpm dev
 ```
 
 Works with plain `next dev`; re-run `vercel env pull` if the OIDC token expires (~12h).
