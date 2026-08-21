@@ -37,6 +37,9 @@ interface PhotoMapProps {
   projectName: string;
   /** Present while pages are still streaming in from the source */
   progress?: LoadProgress | null;
+  /** Viewport before data arrives (FitBounds takes over once pins exist) */
+  fallbackCenter?: [number, number];
+  fallbackZoom?: number;
 }
 
 /** Shareable URL state: ?photo=<id>&c=<lng>,<lat>,<zoom> */
@@ -129,7 +132,13 @@ function FitBounds({
   return null;
 }
 
-export function PhotoMap({ photos, projectName, progress }: PhotoMapProps) {
+export function PhotoMap({
+  photos,
+  projectName,
+  progress,
+  fallbackCenter = [0, 20],
+  fallbackZoom = 1.5,
+}: PhotoMapProps) {
   const [urlState] = useState(readUrlState);
   const [selectedId, setSelectedId] = useState<string | null>(
     urlState.photoId,
@@ -196,8 +205,8 @@ export function PhotoMap({ photos, projectName, progress }: PhotoMapProps) {
     <div className="relative h-dvh w-full overflow-hidden">
       <Map
         className="absolute inset-0"
-        center={urlState.viewport?.center ?? [-97.7466, 30.2589]}
-        zoom={urlState.viewport?.zoom ?? 14}
+        center={urlState.viewport?.center ?? fallbackCenter}
+        zoom={urlState.viewport?.zoom ?? fallbackZoom}
         onViewportChange={handleViewportChange}
         attributionControl={{ compact: true }}
       >
