@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { ConnectCard } from "@/components/connect-card";
+import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listProjects, type AccProject } from "@/lib/acc/client";
 import {
   AuthorizationRequiredError,
+  ConnectNotConfiguredError,
   getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
@@ -59,6 +60,9 @@ async function ProjectList() {
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
       return <ConnectCard returnTo="/projects" />;
+    }
+    if (error instanceof ConnectNotConfiguredError) {
+      return <SetupCard />;
     }
     throw error;
   }

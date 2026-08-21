@@ -4,7 +4,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
-import { ConnectCard } from "@/components/connect-card";
+import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { Button } from "@/components/ui/button";
 import type { PhotoPage } from "@/lib/photos/types";
 
@@ -91,6 +91,13 @@ export function ProjectPhotoMap({
     return (
       <main className="flex min-h-dvh items-center justify-center px-6">
         <ConnectCard returnTo={`/p/${projectId}`} />
+      </main>
+    );
+  }
+  if (isError && error instanceof ApiError && error.status === 503) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center px-6">
+        <SetupCard />
       </main>
     );
   }

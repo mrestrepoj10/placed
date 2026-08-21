@@ -18,7 +18,7 @@ export default function DemoPage() {
     <PhotoMap
       photos={DEMO_PHOTOS}
       projectName={DEMO_PROJECT.name}
-      fallbackCenter={[-97.7466, 30.2589]}
+      fallbackCenter={[-97.705, 30.2995]}
       fallbackZoom={14}
     />
   );

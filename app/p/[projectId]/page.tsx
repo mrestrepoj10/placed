@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 
-import { ConnectCard } from "@/components/connect-card";
+import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { ProjectPhotoMap } from "@/components/photo-map/project-photo-map";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listProjects } from "@/lib/acc/client";
 import {
   AuthorizationRequiredError,
+  ConnectNotConfiguredError,
   getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
@@ -59,6 +60,13 @@ async function ProjectView({
       return (
         <main className="flex min-h-dvh items-center justify-center px-6">
           <ConnectCard returnTo={`/p/${projectId}`} />
+        </main>
+      );
+    }
+    if (error instanceof ConnectNotConfiguredError) {
+      return (
+        <main className="flex min-h-dvh items-center justify-center px-6">
+          <SetupCard />
         </main>
       );
     }

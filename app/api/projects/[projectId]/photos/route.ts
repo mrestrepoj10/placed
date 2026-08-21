@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AccApiError, listPhotoPage } from "@/lib/acc/client";
 import {
   AuthorizationRequiredError,
+  ConnectNotConfiguredError,
   getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
@@ -38,6 +39,12 @@ export async function GET(
       return NextResponse.json(
         { error: "authorization-required" },
         { status: 401 },
+      );
+    }
+    if (error instanceof ConnectNotConfiguredError) {
+      return NextResponse.json(
+        { error: "connect-not-configured" },
+        { status: 503 },
       );
     }
     if (error instanceof AccApiError) {

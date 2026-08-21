@@ -101,6 +101,8 @@ function PhotoLayers({
       pointRadius={7}
       clusterColors={clusterColors}
       clusterThresholds={[25, 150]}
+      clusterMaxZoom={16}
+      clusterRadius={22}
       onPointClick={(feature) => onSelect(feature.properties.id)}
     />
   );

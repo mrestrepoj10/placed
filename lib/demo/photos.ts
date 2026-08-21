@@ -19,8 +19,9 @@ export const DEMO_PROJECT = {
     "Synthetic demo project — a downtown building package plus a utility corridor.",
 } as const;
 
-// South shore of Lady Bird Lake, Austin, TX
-const SITE = { lat: 30.2589, lng: -97.7466 };
+// Mueller redevelopment area, Austin, TX — a real construction district,
+// and dry land throughout (no pins floating in rivers)
+const SITE = { lat: 30.2995, lng: -97.705 };
 
 function mulberry32(seed: number) {
   let a = seed;
@@ -135,15 +136,16 @@ function buildSpots(): Spot[] {
     spots.push(p);
   }
 
-  // Utility corridor: ~34 photos along ~1.3km heading east, slight jitter
+  // Utility corridor: ~34 photos along ~1.7km heading east — spaced so they
+  // read as individual colored pins at the fit zoom, clustering as you zoom out
   const corridorStart = offset(SITE.lat, SITE.lng, 120, -140);
   for (let i = 0; i < 34; i++) {
-    const along = (i / 33) * 1300;
+    const along = (i / 33) * 1700;
     const p = offset(
       corridorStart.lat,
       corridorStart.lng,
-      along + gauss(25),
-      -along * 0.12 + gauss(25),
+      along + gauss(10),
+      -along * 0.12 + gauss(10),
     );
     spots.push(p);
   }

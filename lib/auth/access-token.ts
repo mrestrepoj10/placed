@@ -29,6 +29,26 @@ export class AuthorizationRequiredError extends Error {
   }
 }
 
+/**
+ * Thrown when the deployment itself can't reach Vercel Connect — no OIDC
+ * token (unlinked local checkout) or no connector. A setup problem for the
+ * deployer, not an auth state of the visitor.
+ */
+export class ConnectNotConfiguredError extends Error {
+  constructor(cause: unknown) {
+    super("Vercel Connect is not configured for this deployment", { cause });
+    this.name = "ConnectNotConfiguredError";
+  }
+}
+
+function isConfigurationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "VercelOidcTokenError" ||
+    /oidc|vc link|vercel link/i.test(error.message)
+  );
+}
+
 /** A short-lived APS access token for this visitor's Autodesk grant. */
 export async function getAccessToken(visitorId: string): Promise<string> {
   try {
@@ -39,6 +59,9 @@ export async function getAccessToken(visitorId: string): Promise<string> {
   } catch (error) {
     if (error instanceof UserAuthorizationRequiredError) {
       throw new AuthorizationRequiredError();
+    }
+    if (isConfigurationError(error)) {
+      throw new ConnectNotConfiguredError(error);
     }
     throw error;
   }
@@ -52,12 +75,19 @@ export async function getAuthorizationUrl(
   visitorId: string,
   callbackUrl: string,
 ): Promise<string> {
-  const { url } = await startAuthorization(
-    CONNECTOR,
-    { subject: { type: "user", id: visitorId }, scopes: SCOPES },
-    { callbackUrl },
-  );
-  return url;
+  try {
+    const { url } = await startAuthorization(
+      CONNECTOR,
+      { subject: { type: "user", id: visitorId }, scopes: SCOPES },
+      { callbackUrl },
+    );
+    return url;
+  } catch (error) {
+    if (isConfigurationError(error)) {
+      throw new ConnectNotConfiguredError(error);
+    }
+    throw error;
+  }
 }
 
 /** Revoke this visitor's Autodesk grant. */

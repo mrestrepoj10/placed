@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getAuthorizationUrl } from "@/lib/auth/access-token";
+import {
+  ConnectNotConfiguredError,
+  getAuthorizationUrl,
+} from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
 
 /**
@@ -22,6 +25,16 @@ export async function GET(request: NextRequest) {
       : "/projects";
 
   const callbackUrl = new URL(returnTo, request.nextUrl.origin).toString();
-  const authorizationUrl = await getAuthorizationUrl(visitorId, callbackUrl);
-  return NextResponse.redirect(authorizationUrl);
+  try {
+    const authorizationUrl = await getAuthorizationUrl(visitorId, callbackUrl);
+    return NextResponse.redirect(authorizationUrl);
+  } catch (error) {
+    if (error instanceof ConnectNotConfiguredError) {
+      // /projects renders the setup card explaining what's missing
+      return NextResponse.redirect(
+        new URL("/projects", request.nextUrl.origin),
+      );
+    }
+    throw error;
+  }
 }
