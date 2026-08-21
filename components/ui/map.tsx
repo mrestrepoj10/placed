@@ -22,15 +22,16 @@ import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+// Self-hosted worker (copied from node_modules by the `sync-maplibre-worker`
+// npm script) — no runtime CDN dependency.
 if (typeof window !== "undefined" && !MapLibreGL.getWorkerUrl()) {
-  MapLibreGL.setWorkerUrl(
-    `https://unpkg.com/maplibre-gl@${MapLibreGL.getVersion()}/dist/maplibre-gl-worker.mjs`,
-  );
+  MapLibreGL.setWorkerUrl("/maplibre-gl-worker.mjs");
 }
 
+// OpenFreeMap: no API key, no usage cap, commercial use permitted.
 const defaultStyles = {
-  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  dark: "https://tiles.openfreemap.org/styles/dark",
+  light: "https://tiles.openfreemap.org/styles/positron",
 };
 
 // A tile-less, dependency-free style with a transparent background. Use it for
@@ -1895,8 +1896,14 @@ type MapClusterLayerProps<
   clusterColors?: [string, string, string];
   /** Point count thresholds for color/size steps: [medium, large] (default: [100, 750]) */
   clusterThresholds?: [number, number];
-  /** Color for unclustered individual points (default: "#3b82f6") */
-  pointColor?: string;
+  /**
+   * Color for unclustered individual points (default: "#3b82f6").
+   * Accepts a MapLibre expression for data-driven styling, e.g.
+   * ["match", ["get", "category"], "issue", "#ef4444", "#3b82f6"].
+   */
+  pointColor?: string | MapLibreGL.ExpressionSpecification;
+  /** Radius in pixels for unclustered individual points (default: 5) */
+  pointRadius?: number;
   /** Callback when an unclustered point is clicked */
   onPointClick?: (
     feature: GeoJSON.Feature<GeoJSON.Point, P>,
@@ -1926,6 +1933,7 @@ function MapClusterLayer<
   clusterColors = DEFAULT_CLUSTER_COLORS,
   clusterThresholds = DEFAULT_CLUSTER_THRESHOLDS,
   pointColor = "#3b82f6",
+  pointRadius = 5,
   onPointClick,
   onClusterClick,
 }: MapClusterLayerProps<P>) {
@@ -1940,6 +1948,7 @@ function MapClusterLayer<
     clusterColors,
     clusterThresholds,
     pointColor,
+    pointRadius,
   });
 
   // Add source and layers on mount
@@ -2010,7 +2019,7 @@ function MapClusterLayer<
       filter: ["!", ["has", "point_count"]],
       paint: {
         "circle-color": pointColor,
-        "circle-radius": 5,
+        "circle-radius": pointRadius,
         "circle-stroke-width": 2,
         "circle-stroke-color": "#fff",
       },
@@ -2076,8 +2085,16 @@ function MapClusterLayer<
     if (map.getLayer(unclusteredLayerId) && prev.pointColor !== pointColor) {
       map.setPaintProperty(unclusteredLayerId, "circle-color", pointColor);
     }
+    if (map.getLayer(unclusteredLayerId) && prev.pointRadius !== pointRadius) {
+      map.setPaintProperty(unclusteredLayerId, "circle-radius", pointRadius);
+    }
 
-    stylePropsRef.current = { clusterColors, clusterThresholds, pointColor };
+    stylePropsRef.current = {
+      clusterColors,
+      clusterThresholds,
+      pointColor,
+      pointRadius,
+    };
   }, [
     isLoaded,
     map,
@@ -2086,6 +2103,7 @@ function MapClusterLayer<
     clusterColors,
     clusterThresholds,
     pointColor,
+    pointRadius,
   ]);
 
   // Handle click events

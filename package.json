@@ -1,12 +1,14 @@
 {
-  "name": "placed-scaffold",
+  "name": "placed",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-maplibre-worker": "cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs public/",
+    "postinstall": "npm run sync-maplibre-worker"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
