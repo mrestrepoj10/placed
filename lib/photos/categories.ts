@@ -33,6 +33,16 @@ export const CATEGORY_META: Record<
 };
 
 /**
+ * CSS color that follows the active theme (globals.css sets `color-scheme`
+ * on :root/.dark, which drives `light-dark()`). For DOM swatches — the map
+ * layers use `categoryColorExpression` instead.
+ */
+export function categoryCssColor(category: PhotoCategory): string {
+  const { light, dark } = CATEGORY_META[category].color;
+  return `light-dark(${light}, ${dark})`;
+}
+
+/**
  * MapLibre expression coloring each point by its `category` feature property.
  */
 export function categoryColorExpression(
