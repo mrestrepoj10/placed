@@ -19,7 +19,15 @@ export const PHOTO_CATEGORIES = [
 
 export type PhotoCategory = (typeof PHOTO_CATEGORIES)[number];
 
-export type PhotoMediaType = "photo" | "video" | "photosphere" | "infrared";
+/** Capture kind, normalized across sources. */
+export const PHOTO_MEDIA_TYPES = [
+  "photo",
+  "video",
+  "photosphere",
+  "infrared",
+] as const;
+
+export type PhotoMediaType = (typeof PHOTO_MEDIA_TYPES)[number];
 
 export interface PlacedPhoto {
   id: string;
@@ -41,6 +49,25 @@ export interface PlacedPhoto {
   thumbnailUrl: string;
   /** Deep link into the system of record; null when there is none */
   sourceUrl: string | null;
+}
+
+/**
+ * The moment a photo represents: EXIF capture time when the device recorded
+ * one, the record's creation time otherwise. Every time-driven view — the
+ * timeline, recency coloring, the coverage grid — reads photos through this,
+ * so the fallback lives in exactly one place.
+ *
+ * Returns null when neither date parses, which real exports occasionally hit;
+ * callers drop those photos from time-based views rather than dating them to
+ * the epoch.
+ */
+export function photoCapturedAt(
+  photo: Pick<PlacedPhoto, "takenAt" | "createdAt">,
+): number | null {
+  const taken = photo.takenAt === null ? NaN : Date.parse(photo.takenAt);
+  if (Number.isFinite(taken)) return taken;
+  const created = Date.parse(photo.createdAt);
+  return Number.isFinite(created) ? created : null;
 }
 
 export function hasLocation(
