@@ -1888,6 +1888,12 @@ type MapClusterLayerProps<
 > = {
   /** GeoJSON FeatureCollection data or URL to fetch GeoJSON from */
   data: string | GeoJSON.FeatureCollection<GeoJSON.Point, P>;
+  /**
+   * Optional unique identifier prefix for the source/layers, matching
+   * `MapGeoJSON`. Auto-generated if not provided; pass one when sibling
+   * components need to name these layers (hover handlers, z-ordering).
+   */
+  id?: string;
   /** Maximum zoom level to cluster points on (default: 14) */
   clusterMaxZoom?: number;
   /** Radius of each cluster when clustering points in pixels (default: 50) */
@@ -1928,6 +1934,7 @@ function MapClusterLayer<
   P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonProperties,
 >({
   data,
+  id: propId,
   clusterMaxZoom = 14,
   clusterRadius = 50,
   clusterColors = DEFAULT_CLUSTER_COLORS,
@@ -1938,7 +1945,8 @@ function MapClusterLayer<
   onClusterClick,
 }: MapClusterLayerProps<P>) {
   const { map, isLoaded } = useMap();
-  const id = useId();
+  const autoId = useId();
+  const id = propId ?? autoId;
   const sourceId = `cluster-source-${id}`;
   const clusterLayerId = `clusters-${id}`;
   const clusterCountLayerId = `cluster-count-${id}`;

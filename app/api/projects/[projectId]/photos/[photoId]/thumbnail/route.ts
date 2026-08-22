@@ -45,7 +45,12 @@ export async function GET(
       return new NextResponse(asset.body, {
         status: 200,
         headers: {
-          "Cache-Control": "private, max-age=30",
+          // Per-photo thumbnails don't change, and hovering the map asks for
+          // them constantly. Cache in the browser for an hour — the same
+          // horizon as the access token that authorized the fetch — and serve
+          // a stale one for a day while it revalidates.
+          "Cache-Control":
+            "private, max-age=3600, stale-while-revalidate=86400",
           "Content-Type": contentType,
           "X-Content-Type-Options": "nosniff",
         },

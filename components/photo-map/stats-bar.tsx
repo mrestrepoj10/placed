@@ -24,6 +24,8 @@ interface StatsBarProps {
   projectName: string;
   photos: PlacedPhoto[];
   locatedCount: number;
+  /** Located photos surviving the active filters */
+  shownCount: number;
   progress: LoadProgress | null;
 }
 
@@ -42,12 +44,13 @@ export function StatsBar({
   projectName,
   photos,
   locatedCount,
+  shownCount,
   progress,
 }: StatsBarProps) {
   const unlocated = photos.filter((photo) => !hasLocation(photo));
 
   return (
-    <div className="absolute top-3 left-3 z-10 max-w-[calc(100%-6rem)] rounded-lg border bg-background/90 shadow-sm backdrop-blur-sm">
+    <div className="pointer-events-auto rounded-lg border bg-background/90 shadow-sm backdrop-blur-sm">
       <div className="px-3.5 py-2.5">
         <p className="font-heading text-sm font-semibold leading-tight">
           <Link href="/" className="hover:underline">
@@ -70,6 +73,15 @@ export function StatsBar({
             {locatedCount.toLocaleString("en-US")}
           </span>{" "}
           of {photos.length.toLocaleString("en-US")} photos have location
+          {shownCount !== locatedCount && (
+            <>
+              {" · "}
+              <span className="font-medium text-foreground">
+                {shownCount.toLocaleString("en-US")}
+              </span>{" "}
+              match filters
+            </>
+          )}
           {unlocated.length > 0 && (
             <>
               {" · "}

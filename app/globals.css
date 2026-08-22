@@ -135,6 +135,11 @@
   .maplibregl-popup-tip {
     @apply hidden!;
   }
+  /* The hover card tracks the cursor; if it captured pointer events it would
+     hide the very pin that keeps it open, and flicker. */
+  .maplibregl-popup-content:has([data-slot="photo-hover-card"]) {
+    @apply pointer-events-none!;
+  }
   .maplibregl-ctrl-attrib {
     @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm!;
   }
