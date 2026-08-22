@@ -111,17 +111,20 @@ export function FilterBar({
           spacing={0}
           aria-label="Media type"
           value={availableMediaTypes.filter((type) => mediaTypes.has(type))}
-          onValueChange={(values: string[]) =>
-            // Emptying the group would blank the map with no way back, so
-            // clearing every type falls back to showing them all.
-            onMediaTypesChange(
-              new Set<PhotoMediaType>(
-                values.length === 0
-                  ? availableMediaTypes
-                  : (values as PhotoMediaType[]),
-              ),
-            )
-          }
+          onValueChange={(values: string[]) => {
+            // Only the types on screen are being answered for. A type another
+            // facet has temporarily zeroed out keeps whatever the viewer last
+            // chose, so clearing a search doesn't silently resurrect it
+            // deselected. Emptying the group would blank the map with no way
+            // back, so that falls through to showing every visible type.
+            const chosen = new Set(values as PhotoMediaType[]);
+            const next = new Set(mediaTypes);
+            for (const type of availableMediaTypes) {
+              if (chosen.size === 0 || chosen.has(type)) next.add(type);
+              else next.delete(type);
+            }
+            onMediaTypesChange(next);
+          }}
         >
           {availableMediaTypes.map((type) => {
             const { label, icon: Icon } = MEDIA_TYPE_META[type];

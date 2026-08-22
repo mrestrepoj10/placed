@@ -12,12 +12,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  addDays,
-  daysBetween,
-  endOfDay,
-  startOfDay,
-} from "@/lib/photos/dates";
+import { addDays, daysBetween, endOfDay, startOfDay } from "@/lib/photos/dates";
 import { photoCapturedAt, type PlacedPhoto } from "@/lib/photos/types";
 
 /** Playback tick interval, and the wall-clock length of a whole sweep. */
@@ -29,6 +24,12 @@ const PLAY_SWEEP_MS = 9_000;
  * instead of drawing thousands of sub-pixel bars, which read as missing data.
  */
 const MAX_BARS = 400;
+/**
+ * Ceiling on the axis when an active range reaches outside the photos. Brushing
+ * can only ever select inside the data, so this only bites on a hand-edited
+ * URL; past it the axis falls back to the photos' own extent.
+ */
+const MAX_DOMAIN_DAYS = 20 * 366;
 
 const dayFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -83,7 +84,17 @@ function buildBars(counts: number[]): { bars: Bar[]; max: number } {
   return { bars, max };
 }
 
-function buildHistogram(photos: PlacedPhoto[]): Histogram | null {
+/**
+ * Bins photos by local day. The axis spans the photos, widened to cover an
+ * active range: without that, a range sitting outside the current photos would
+ * clamp both handles onto the nearest day and the strip would describe a window
+ * it isn't filtering by.
+ */
+function buildHistogram(
+  photos: PlacedPhoto[],
+  start: number | null,
+  end: number | null,
+): Histogram | null {
   let min = Infinity;
   let max = -Infinity;
   const stamps: number[] = [];
@@ -96,8 +107,18 @@ function buildHistogram(photos: PlacedPhoto[]): Histogram | null {
   }
   if (stamps.length === 0) return null;
 
-  const firstDay = startOfDay(min);
-  const dayCount = daysBetween(firstDay, startOfDay(max)) + 1;
+  const dataFirstDay = startOfDay(min);
+  const dataLastDay = startOfDay(max);
+  let firstDay =
+    start === null ? dataFirstDay : Math.min(dataFirstDay, startOfDay(start));
+  let lastDay =
+    end === null ? dataLastDay : Math.max(dataLastDay, startOfDay(end));
+  if (daysBetween(firstDay, lastDay) + 1 > MAX_DOMAIN_DAYS) {
+    firstDay = dataFirstDay;
+    lastDay = dataLastDay;
+  }
+
+  const dayCount = daysBetween(firstDay, lastDay) + 1;
   const counts = new Array<number>(dayCount).fill(0);
   for (const stamp of stamps) {
     const index = daysBetween(firstDay, startOfDay(stamp));
@@ -122,11 +143,28 @@ type DragTarget = "start" | "end" | "window";
  * back as `null`, keeping default share links clean.
  */
 export function Timeline({ photos, start, end, onChange }: TimelineProps) {
-  const histogram = useMemo(() => buildHistogram(photos), [photos]);
+  const histogram = useMemo(
+    () => buildHistogram(photos, start, end),
+    [photos, start, end],
+  );
   const { bars, max: barMax } = useMemo(
     () => buildBars(histogram?.counts ?? []),
     [histogram],
   );
+  // Counted from the range rather than from the drawn bars: the two agree
+  // everywhere the axis covers the range, and where it can't, this is the
+  // number the map is actually showing.
+  const selectedCount = useMemo(() => {
+    let total = 0;
+    for (const photo of photos) {
+      const capturedAt = photoCapturedAt(photo);
+      if (capturedAt === null) continue;
+      if (start !== null && capturedAt < start) continue;
+      if (end !== null && capturedAt > end) continue;
+      total += 1;
+    }
+    return total;
+  }, [photos, start, end]);
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ target: DragTarget; grabOffset: number } | null>(
     null,
@@ -265,9 +303,7 @@ export function Timeline({ photos, start, end, onChange }: TimelineProps) {
   const leftPercent = (startIndex / dayCount) * 100;
   const rightPercent = ((endIndex + 1) / dayCount) * 100;
   const brushed = start !== null || end !== null;
-  const selectedCount = histogram.counts
-    .slice(startIndex, endIndex + 1)
-    .reduce((total, count) => total + count, 0);
+
   // Sub-pixel gaps look like missing data; only separate columns when there is
   // room for a gap to read as one.
   const gap = bars.length > 90 ? 0 : 0.18;
@@ -292,8 +328,8 @@ export function Timeline({ photos, start, end, onChange }: TimelineProps) {
           )}
         </Button>
         <span className="font-medium text-foreground tabular-nums">
-          {dayYearFormat.format(dayAt(startIndex))} –{" "}
-          {dayYearFormat.format(dayAt(endIndex))}
+          {dayYearFormat.format(start ?? dayAt(0))} –{" "}
+          {dayYearFormat.format(end ?? dayAt(dayCount - 1))}
         </span>
         <span className="tabular-nums">
           {selectedCount.toLocaleString("en-US")} photo
