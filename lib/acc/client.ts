@@ -128,18 +128,52 @@ export async function listPhotoPage(
   };
 }
 
+export interface PhotoAssetCandidate {
+  url: string;
+  requiresAuthorization: boolean;
+}
+
 /**
- * A fresh signed thumbnail URL (S3, expires in ~a minute). Fetched
- * just-in-time per request — never cached, never stored.
+ * Asset candidates ordered from smallest/least privileged to largest. ACC can
+ * omit signed URLs, so its authenticated asset URLs are retained as fallback.
+ * None of these URLs are cached, stored, or returned directly to the browser.
  */
-export async function getThumbnailUrl(
+export async function getPhotoAssetCandidates(
   token: string,
   projectId: string,
   photoId: string,
-): Promise<string | null> {
-  const photo = await accFetch<AccPhoto>(
+): Promise<PhotoAssetCandidate[]> {
+  const result = await accFetch<PhotosFilterResponse>(
     token,
-    `/construction/photos/v1/projects/${projectId}/photos/${photoId}?include=signedUrls`,
+    `/construction/photos/v1/projects/${projectId}/photos:filter`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        filter: { id: [photoId] },
+        include: ["signedUrls"],
+        limit: 1,
+      }),
+    },
   );
-  return photo.signedUrls?.thumbnailUrl ?? null;
+  const photo = result.results[0];
+  if (!photo) return [];
+
+  const candidates: Array<PhotoAssetCandidate | null> = [
+    photo.signedUrls?.thumbnailUrl
+      ? { url: photo.signedUrls.thumbnailUrl, requiresAuthorization: false }
+      : null,
+    photo.urls?.thumbnailUrl
+      ? { url: photo.urls.thumbnailUrl, requiresAuthorization: true }
+      : null,
+    photo.signedUrls?.fileUrl
+      ? { url: photo.signedUrls.fileUrl, requiresAuthorization: false }
+      : null,
+    photo.urls?.fileUrl
+      ? { url: photo.urls.fileUrl, requiresAuthorization: true }
+      : null,
+  ];
+
+  return candidates.filter(
+    (candidate): candidate is PhotoAssetCandidate => candidate !== null,
+  );
 }

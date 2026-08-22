@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { AccApiError, getThumbnailUrl } from "@/lib/acc/client";
+import { AccApiError, getPhotoAssetCandidates } from "@/lib/acc/client";
 import {
   AuthorizationRequiredError,
   getAccessToken,
@@ -10,10 +10,9 @@ import { getVisitorId } from "@/lib/auth/visitor";
 const UUID_PATTERN = /^[0-9a-f-]{36}$/i;
 
 /**
- * Owns the short-lived-signed-URL problem: fetches a fresh signed thumbnail
- * URL from ACC and 302-redirects to it, so `<img src>` always gets a valid
- * signature and the client does zero expiry bookkeeping. The brief private
- * max-age stays well under the ~60s signature TTL.
+ * Owns the short-lived-signed-URL problem: fetches the image server-side and
+ * streams it from our origin. If ACC has not generated a thumbnail (which can
+ * happen for recent gallery uploads), the original image is the fallback.
  */
 export async function GET(
   _request: Request,
@@ -29,12 +28,31 @@ export async function GET(
 
   try {
     const token = await getAccessToken(visitorId);
-    const url = await getThumbnailUrl(token, projectId, photoId);
-    if (!url) return new NextResponse(null, { status: 404 });
-    return NextResponse.redirect(url, {
-      status: 302,
-      headers: { "Cache-Control": "private, max-age=30" },
-    });
+    const candidates = await getPhotoAssetCandidates(token, projectId, photoId);
+
+    for (const candidate of candidates) {
+      const asset = await fetch(candidate.url, {
+        cache: "no-store",
+        headers: candidate.requiresAuthorization
+          ? { Authorization: `Bearer ${token}` }
+          : undefined,
+      });
+      if (!asset.ok || !asset.body) continue;
+
+      const contentType = asset.headers.get("content-type") ?? "image/jpeg";
+      if (!contentType.toLowerCase().startsWith("image/")) continue;
+
+      return new NextResponse(asset.body, {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, max-age=30",
+          "Content-Type": contentType,
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
+    return new NextResponse(null, { status: candidates.length ? 502 : 404 });
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
       return new NextResponse(null, { status: 401 });

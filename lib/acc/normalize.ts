@@ -16,6 +16,7 @@ export interface AccPhoto {
   latitude?: number | null;
   longitude?: number | null;
   signedUrls?: { fileUrl?: string; thumbnailUrl?: string };
+  urls?: { fileUrl?: string; thumbnailUrl?: string };
 }
 
 /**
@@ -42,6 +43,10 @@ const MEDIA_TYPE: Record<string, PhotoMediaType> = {
   INFRARED: "infrared",
 };
 
+function normalizedEnum(value?: string): string {
+  return value?.trim().toUpperCase().replace(/[\s_]+/g, "-") ?? "";
+}
+
 /**
  * Deep link into the Autodesk Build photo gallery. This URL shape is not
  * documented by Autodesk — verified empirically against ACC Build; if it
@@ -55,11 +60,18 @@ export function normalizeAccPhoto(
   projectId: string,
   photo: AccPhoto,
 ): PlacedPhoto {
+  const originType = normalizedEnum(photo.type);
+  const mediaType = normalizedEnum(photo.mediaType);
+
   return {
     id: photo.id,
     title: photo.title?.trim() || null,
-    category: TYPE_TO_CATEGORY[photo.type ?? ""] ?? "other",
-    mediaType: MEDIA_TYPE[photo.mediaType ?? ""] ?? "photo",
+    // ACC may omit `type` for media uploaded directly to the Photos gallery.
+    // Values from older clients can also differ in case/separator style.
+    category: originType
+      ? (TYPE_TO_CATEGORY[originType] ?? "other")
+      : "gallery",
+    mediaType: MEDIA_TYPE[mediaType] ?? "photo",
     takenAt: photo.takenAt ?? null,
     createdAt: photo.createdAt,
     latitude: photo.latitude ?? null,
@@ -71,5 +83,5 @@ export function normalizeAccPhoto(
 
 /** Photos worth showing: not deleted, not a markup/logo artifact. */
 export function isVisibleAccPhoto(photo: AccPhoto): boolean {
-  return !photo.deletedAt && !HIDDEN_ACC_TYPES.has(photo.type ?? "");
+  return !photo.deletedAt && !HIDDEN_ACC_TYPES.has(normalizedEnum(photo.type));
 }
