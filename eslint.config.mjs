@@ -24,6 +24,21 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    // Vendored from the evilcharts registry for the timeline — same deal as the
+    // mapcn map: upstream source, so the rules it predates are off here and
+    // nowhere else. Carries one local patch, marked PATCHED in echarts-brush.
+    files: ["components/evilcharts/**"],
+    // Upstream carries its own disable comments for rules we switch off below.
+    linterOptions: { reportUnusedDisableDirectives: "off" },
+    rules: {
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/exhaustive-deps": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

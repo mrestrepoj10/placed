@@ -427,7 +427,9 @@ export function PhotoMap({
         coverage={coverage}
         asOf={asOf}
         asOfFromBrush={asOfFromBrush}
-        className="absolute bottom-32 left-3 z-10"
+        // Clears the timeline, which stacks a zoomed plot, its date axis and
+        // the brush strip.
+        className="absolute bottom-52 left-3 z-10"
       />
 
       <div className="pointer-events-none absolute right-14 bottom-3 left-3 z-10">
