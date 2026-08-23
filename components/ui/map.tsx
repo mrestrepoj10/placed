@@ -2011,7 +2011,13 @@ function MapClusterLayer<
       filter: ["has", "point_count"],
       layout: {
         "text-field": "{point_count_abbreviated}",
-        "text-font": ["Open Sans Semibold"],
+        // PATCHED from upstream's ["Open Sans Semibold"], a Mapbox-era default
+        // the OpenFreeMap glyph server does not host — it 404s, and MapLibre
+        // falls back to drawing each digit locally in a system font, logging a
+        // warning per codepoint. Both styles here point their `glyphs` at
+        // https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf, which
+        // serves only Noto Sans Regular/Italic/Bold.
+        "text-font": ["Noto Sans Bold"],
         "text-size": 12,
       },
       paint: {
