@@ -64,13 +64,15 @@ const steps = [
   },
 ];
 
-// Each claim below is load-bearing — see lib/auth/access-token.ts,
-// lib/auth/visitor.ts and proxy.ts. Don't soften them into marketing.
+// Each claim below is load-bearing and must track the auth seam — verify
+// against lib/auth/access-token.ts, lib/auth/visitor.ts and proxy.ts before
+// editing. Don't soften them into marketing, and don't strengthen them past
+// what the code does.
 const security = [
   {
     Icon: KeyRound,
     title: "Refresh tokens we never hold",
-    body: "Vercel Connect hosts the handshake and keeps Autodesk's rotating refresh tokens. Placed asks it for one short-lived access token per request and holds nothing else.",
+    body: "Vercel Connect hosts the handshake and keeps Autodesk's rotating refresh tokens and the OAuth client secret. Placed only ever receives short-lived access tokens, held in memory for their lifetime — never written to disk or a database.",
   },
   {
     Icon: ShieldCheck,
@@ -79,8 +81,8 @@ const security = [
   },
   {
     Icon: Cookie,
-    title: "A cookie, not a token",
-    body: "Your session is a 128-bit random id in an httpOnly, same-site cookie. It identifies you to Placed and carries no credential of any kind.",
+    title: "No tokens in your browser",
+    body: "Your session is a 128-bit random id in an httpOnly, same-site cookie — no Autodesk token, no password, just the key to the grant Vercel Connect holds for you. That makes the cookie itself the thing to protect, and httpOnly plus same-site is the protection.",
   },
   {
     Icon: Trash2,
