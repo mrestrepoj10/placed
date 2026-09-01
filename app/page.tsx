@@ -52,7 +52,7 @@ const REPO_URL = "https://github.com/mrestrepoj10/placed";
 const steps = [
   {
     title: "Connect",
-    body: "Sign in with your Autodesk account and pick a Construction Cloud project. Read-only, per-user permissions.",
+    body: "Sign in with your Autodesk account and pick a Construction Cloud project. Read-only, per-user permissions. An ACC Account Admin also has to approve this app under Account Admin → Custom Integrations; until they do, sign-in still works but no projects appear.",
   },
   {
     title: "See",
