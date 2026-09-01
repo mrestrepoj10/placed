@@ -7,11 +7,13 @@ import { useMap } from "@/components/ui/map";
 import type { CoverageGrid } from "@/lib/photos/coverage";
 import { coverageColorExpression, NO_COVERAGE } from "@/lib/photos/recency";
 
-import { PHOTO_LAYER_IDS } from "./layer-ids";
+import {
+  COVERAGE_FILL_LAYER_ID as FILL_LAYER_ID,
+  COVERAGE_LINE_LAYER_ID as LINE_LAYER_ID,
+  PHOTO_LAYER_IDS,
+} from "./layer-ids";
 
 const SOURCE_ID = "coverage-source";
-const FILL_LAYER_ID = "coverage-fill";
-const LINE_LAYER_ID = "coverage-line";
 
 /**
  * The coverage grid, managed directly through `useMap()` rather than through
@@ -43,7 +45,8 @@ export function CoverageLayer({ grid }: { grid: CoverageGrid }) {
       paint: { "line-opacity": 0 },
     });
     // Photo pins stay readable on top of the grid whichever order the two
-    // components happened to mount in.
+    // components happened to mount in. `BuildingsLayer` leans on this too: it
+    // anchors beneath the fill, and the fill is only ever beneath the pins.
     for (const layerId of PHOTO_LAYER_IDS) {
       if (map.getLayer(layerId)) map.moveLayer(layerId);
     }

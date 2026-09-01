@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Box,
   Camera,
   Clock,
   Globe,
@@ -16,6 +17,7 @@ import { useId } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
@@ -50,13 +52,16 @@ interface FilterBarProps {
   mediaTypeCounts: Record<PhotoMediaType, number>;
   mode: MapMode;
   onModeChange: (mode: MapMode) => void;
+  buildings3d: boolean;
+  onBuildings3dChange: (on: boolean) => void;
 }
 
 /**
  * The facets that don't belong to a spatial control: title search and media
- * type, plus the exclusive map-mode switcher. Category lives in the legend,
- * next to the colors it names; the date range lives in the timeline, on the
- * axis it brushes.
+ * type, plus the exclusive map-mode switcher and the 3D toggle — deliberately
+ * not a fourth mode, since buildings are a view and compose with every lens.
+ * Category lives in the legend, next to the colors it names; the date range
+ * lives in the timeline, on the axis it brushes.
  */
 export function FilterBar({
   search,
@@ -66,6 +71,8 @@ export function FilterBar({
   mediaTypeCounts,
   mode,
   onModeChange,
+  buildings3d,
+  onBuildings3dChange,
 }: FilterBarProps) {
   const searchId = useId();
   const availableMediaTypes = PHOTO_MEDIA_TYPES.filter(
@@ -171,6 +178,24 @@ export function FilterBar({
           );
         })}
       </ToggleGroup>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Toggle
+            variant="outline"
+            size="sm"
+            aria-label="3D buildings"
+            pressed={buildings3d}
+            onPressedChange={onBuildings3dChange}
+          >
+            <Box className="size-3.5" aria-hidden />
+            3D
+          </Toggle>
+        </TooltipTrigger>
+        <TooltipContent>
+          Basemap buildings in 3D from zoom 14 · right-drag to rotate and tilt
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
