@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { CopyField } from "@/components/copy-field";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META, categoryCssColor } from "@/lib/photos/categories";
 import { PHOTO_CATEGORIES } from "@/lib/photos/types";
@@ -48,6 +49,10 @@ function ProcoreIcon({ className }: { className?: string }) {
 }
 
 const REPO_URL = "https://github.com/mrestrepoj10/placed";
+
+// The APS app admins approve in Custom Integrations. Public by design —
+// provisioning is exactly what this id is for.
+const APS_CLIENT_ID = "gJOvEwvcGetGIXakmVZtmYosANzR7pGmNQE4BMBQED9X3Lys";
 
 const steps = [
   {
@@ -192,6 +197,25 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t">
+        <div className="mx-auto max-w-4xl px-6 py-12 sm:px-10">
+          <h2 className="font-heading text-xs tracking-wider text-muted-foreground uppercase">
+            Before your first connect
+          </h2>
+          <p className="mt-4 max-w-prose text-sm leading-relaxed text-pretty text-muted-foreground">
+            An ACC Account Admin adds Placed under{" "}
+            <span className="text-foreground">
+              Account Admin &rarr; Custom Integrations
+            </span>{" "}
+            once per account. Send them this client ID &mdash; without it,
+            sign-in succeeds but your hubs stay invisible.
+          </p>
+          <div className="mt-5 max-w-prose">
+            <CopyField label="client ID" value={APS_CLIENT_ID} />
           </div>
         </div>
       </section>
