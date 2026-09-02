@@ -8,6 +8,7 @@ import {
   MapClusterLayer,
   MapControls,
   useMap,
+  type MapRef,
   type MapViewport,
 } from "@/components/ui/map";
 import { categoryColorExpression } from "@/lib/photos/categories";
@@ -34,6 +35,7 @@ import {
 } from "@/lib/photos/types";
 import { readUrlState, writeUrlState } from "@/lib/photos/url-state";
 
+import { BuildingsLayer } from "./buildings-layer";
 import { CoverageLayer } from "./coverage-layer";
 import { FilterBar } from "./filter-bar";
 import { PHOTO_LAYER_PREFIX } from "./layer-ids";
@@ -43,6 +45,12 @@ import { PhotoPanel } from "./photo-panel";
 import { SelectedPin } from "./selected-pin";
 import { StatsBar, type LoadProgress } from "./stats-bar";
 import { Timeline } from "./timeline";
+
+/**
+ * Where the camera tilts to when 3D turns on: steep enough that walls have
+ * height, shallow enough that pins a block back stay legible.
+ */
+const PITCH_3D = 50;
 
 interface PhotoMapProps {
   photos: PlacedPhoto[];
@@ -173,6 +181,8 @@ export function PhotoMap({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filters, setFilters] = useState<PhotoFilters>(DEFAULT_FILTERS);
   const [mode, setMode] = useState<MapMode>("categories");
+  const [buildings3d, setBuildings3d] = useState(false);
+  const mapRef = useRef<MapRef>(null);
 
   // Everything the prerender cannot know: the query string (the shell is
   // static, so seeding it into the first client render would mismatch the
@@ -186,6 +196,7 @@ export function PhotoMap({
     setSelectedId(restored.photoId);
     setFilters(restored.filters);
     setMode(restored.mode);
+    setBuildings3d(restored.buildings3d);
     setNow(Date.now());
     /* eslint-enable react-hooks/set-state-in-effect */
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -253,15 +264,25 @@ export function PhotoMap({
 
   // The URL trails the live state; every writer reads the latest through refs
   // so a viewport tick can't publish a stale filter set, or vice versa.
-  const stateRef = useRef({ selectedId, filters, mode });
+  const stateRef = useRef({ selectedId, filters, mode, buildings3d });
   useEffect(() => {
-    stateRef.current = { selectedId, filters, mode };
-  }, [selectedId, filters, mode]);
+    stateRef.current = { selectedId, filters, mode, buildings3d };
+  }, [selectedId, filters, mode, buildings3d]);
 
   const publish = useCallback((viewport: MapViewport | null) => {
-    const { selectedId: photoId, filters: current, mode: currentMode } =
-      stateRef.current;
-    writeUrlState({ photoId, viewport, filters: current, mode: currentMode });
+    const {
+      selectedId: photoId,
+      filters: current,
+      mode: currentMode,
+      buildings3d: current3d,
+    } = stateRef.current;
+    writeUrlState({
+      photoId,
+      viewport,
+      filters: current,
+      mode: currentMode,
+      buildings3d: current3d,
+    });
   }, []);
 
   const select = useCallback(
@@ -287,6 +308,27 @@ export function PhotoMap({
       setMode(next);
       stateRef.current = { ...stateRef.current, mode: next };
       publish(null);
+    },
+    [publish],
+  );
+
+  // Toggling 3D also drives the camera — a flat map shows nothing of an
+  // extrusion — but only on the transition. A link that restored a tilted
+  // view keeps the tilt it was shared with, because this never runs for it.
+  const updateBuildings3d = useCallback(
+    (next: boolean) => {
+      setBuildings3d(next);
+      stateRef.current = { ...stateRef.current, buildings3d: next };
+      publish(null);
+      const map = mapRef.current;
+      if (!map) return;
+      if (!next) {
+        map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
+      } else if (map.getPitch() < PITCH_3D / 2) {
+        // A view someone already tilted by hand is left alone; anything
+        // flatter than half the target reads as flat and gets the full tilt.
+        map.easeTo({ pitch: PITCH_3D, duration: 600 });
+      }
     },
     [publish],
   );
@@ -378,13 +420,21 @@ export function PhotoMap({
   return (
     <div className="relative h-dvh w-full overflow-hidden">
       <Map
+        ref={mapRef}
         className="absolute inset-0"
         center={initialViewport?.center ?? fallbackCenter}
         zoom={initialViewport?.zoom ?? fallbackZoom}
+        pitch={initialViewport?.pitch ?? 0}
+        bearing={initialViewport?.bearing ?? 0}
         onViewportChange={handleViewportChange}
         attributionControl={{ compact: true }}
       >
-        <MapControls position="bottom-right" />
+        {/* The compass is how rotation gets discovered and how a turned view
+            finds north again; on a flat, north-up map it would be clutter. */}
+        <MapControls position="bottom-right" showCompass={buildings3d} />
+        {/* First in the tree so a fresh style gets it at the bottom; the layer
+            anchors itself beneath the rest when it mounts later. */}
+        {buildings3d && <BuildingsLayer />}
         {coverage && <CoverageLayer grid={coverage} />}
         <PhotoLayers
           collection={collection}
@@ -416,6 +466,8 @@ export function PhotoMap({
           mediaTypeCounts={mediaTypeCounts}
           mode={mode}
           onModeChange={updateMode}
+          buildings3d={buildings3d}
+          onBuildings3dChange={updateBuildings3d}
         />
       </div>
 

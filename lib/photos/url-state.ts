@@ -16,8 +16,9 @@ import {
 /**
  * The whole view, in the query string:
  *
- *   ?photo=<id>&c=<lng>,<lat>,<zoom>&mode=<mode>
- *   &q=<title search>&cat=<a,b,c>&media=<a,b>&from=<YYYY-MM-DD>&to=<YYYY-MM-DD>
+ *   ?photo=<id>&c=<lng>,<lat>,<zoom>[,<pitch>[,<bearing>]]&mode=<mode>
+ *   &3d=1&q=<title search>&cat=<a,b,c>&media=<a,b>
+ *   &from=<YYYY-MM-DD>&to=<YYYY-MM-DD>
  *
  * Every write is a `history.replaceState` — never a router push — so panning
  * and brushing stay free, and any view a user is looking at is a link they can
@@ -28,6 +29,9 @@ import {
 export interface MapViewportState {
   center: [number, number];
   zoom: number;
+  /** Degrees off flat; 0 with bearing 0 is the view every pre-3D link meant */
+  pitch: number;
+  bearing: number;
 }
 
 export interface MapUrlState {
@@ -35,6 +39,8 @@ export interface MapUrlState {
   viewport: MapViewportState | null;
   filters: PhotoFilters;
   mode: MapMode;
+  /** Extruded basemap buildings — a view, not a mode, so it composes */
+  buildings3d: boolean;
 }
 
 export const DEFAULT_URL_STATE: MapUrlState = {
@@ -42,6 +48,7 @@ export const DEFAULT_URL_STATE: MapUrlState = {
   viewport: null,
   filters: DEFAULT_FILTERS,
   mode: "categories",
+  buildings3d: false,
 };
 
 function readSet<T extends string>(
@@ -80,10 +87,19 @@ export function readUrlState(): MapUrlState {
   if (typeof window === "undefined") return DEFAULT_URL_STATE;
   const params = new URLSearchParams(window.location.search);
 
+  // `c` grew pitch and bearing on the right after links in the flat
+  // three-component form were already in the wild; those still parse, with
+  // a missing component reading as zero — flat and north-up — rather than
+  // as a broken viewport.
   const c = params.get("c")?.split(",").map(Number) ?? [];
   const viewport =
-    c.length === 3 && c.every(Number.isFinite)
-      ? { center: [c[0], c[1]] as [number, number], zoom: c[2] }
+    c.length >= 3 && c.length <= 5 && c.every(Number.isFinite)
+      ? {
+          center: [c[0], c[1]] as [number, number],
+          zoom: c[2],
+          pitch: c[3] ?? 0,
+          bearing: c[4] ?? 0,
+        }
       : null;
 
   const mode = params.get("mode");
@@ -96,6 +112,7 @@ export function readUrlState(): MapUrlState {
     photoId: params.get("photo"),
     viewport,
     mode: isMapMode(mode) ? mode : "categories",
+    buildings3d: params.get("3d") === "1",
     filters: {
       search: params.get("q") ?? "",
       categories: readSet<PhotoCategory>(
@@ -126,14 +143,22 @@ export function writeUrlState(state: MapUrlState): void {
 
   if (state.viewport) {
     const [lng, lat] = state.viewport.center;
-    params.set(
-      "c",
-      `${lng.toFixed(5)},${lat.toFixed(5)},${state.viewport.zoom.toFixed(2)}`,
-    );
+    const { zoom, pitch, bearing } = state.viewport;
+    const parts = [lng.toFixed(5), lat.toFixed(5), zoom.toFixed(2)];
+    // Zeros on the right are dropped rather than written, so a flat view keeps
+    // the three-component form and a tilted, north-up one stops at four.
+    const tilt = Number(pitch.toFixed(1));
+    const heading = Number(bearing.toFixed(1));
+    if (heading !== 0) parts.push(String(tilt), String(heading));
+    else if (tilt !== 0) parts.push(String(tilt));
+    params.set("c", parts.join(","));
   }
 
   if (state.mode === "categories") params.delete("mode");
   else params.set("mode", state.mode);
+
+  if (state.buildings3d) params.set("3d", "1");
+  else params.delete("3d");
 
   const { search, categories, mediaTypes, start, end } = state.filters;
   if (search.trim()) params.set("q", search);

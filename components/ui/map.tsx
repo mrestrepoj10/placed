@@ -881,7 +881,13 @@ function MapControls({
   }, [map]);
 
   const handleResetBearing = useCallback(() => {
-    map?.resetNorthPitch({ duration: 300 });
+    // PATCHED from upstream's `resetNorthPitch`, which also flattened pitch.
+    // The compass is only on screen when something has tilted the map (here,
+    // the 3D buildings toggle), so zeroing pitch from the *bearing* control
+    // silently undid the mode that summoned it — the button and the map then
+    // disagreed, and a shared URL carried that disagreement. Bearing only;
+    // the label has always said so.
+    map?.resetNorth({ duration: 300 });
   }, [map]);
 
   const handleLocate = useCallback(() => {
