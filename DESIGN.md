@@ -111,7 +111,13 @@ Next.js **16.3.2** (Cache Components + Partial Prefetching enabled), TypeScript,
 - Default basemap: **OpenFreeMap** light/dark styles — zero API key, no usage cap, commercial-OK. A fork runs with **no keys at all**.
 - No satellite layer in v0.1 (needs either gray-terms Esri raster or a MapTiler key; deferred).
 - `MapClusterLayer` forked for `match`-expression category colors keyed off one shared `type → color` map (used by legend + layers). Category filter = filter the FeatureCollection in React (re-clusters correctly).
-- Self-hosted MapLibre worker; Carto defaults removed.
+- Self-hosted MapLibre worker; Carto defaults removed. The worker and its
+  shared chunk are gitignored build output, copied into `public/` by
+  `sync-maplibre-worker`. `build` runs that copy as well as `postinstall`:
+  the two look redundant locally, but `postinstall` is skipped whenever the
+  install is a cache hit, and a deployment that ships without them serves a
+  black map — the style never finishes loading, so no tiles are ever
+  requested and no layers mount. Don't collapse them into one.
 
 ## 4. Repo & release
 
