@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 
 import { CopyField } from "@/components/copy-field";
+import { APS_CLIENT_ID } from "@/lib/acc/app-id";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META, categoryCssColor } from "@/lib/photos/categories";
 import { PHOTO_CATEGORIES } from "@/lib/photos/types";
@@ -50,14 +51,11 @@ function ProcoreIcon({ className }: { className?: string }) {
 
 const REPO_URL = "https://github.com/mrestrepoj10/placed";
 
-// The APS app admins approve in Custom Integrations. Public by design —
-// provisioning is exactly what this id is for.
-const APS_CLIENT_ID = "gJOvEwvcGetGIXakmVZtmYosANzR7pGmNQE4BMBQED9X3Lys";
 
 const steps = [
   {
     title: "Connect",
-    body: "Sign in with your Autodesk account and pick a Construction Cloud project. Read-only, per-user permissions. An ACC Account Admin also has to approve this app under Account Admin → Custom Integrations; until they do, sign-in still works but no projects appear.",
+    body: "Sign in with your Autodesk account and pick a Construction Cloud project. Read-only, with your own ACC permissions.",
   },
   {
     title: "See",
@@ -143,6 +141,12 @@ export default function LandingPage() {
             <Link href="/projects">Connect Autodesk</Link>
           </Button>
         </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Connecting needs a one-time approval by your ACC account admin.{" "}
+          <a href="#before-first-connect" className="underline underline-offset-4 hover:text-foreground">
+            What to send them
+          </a>
+        </p>
 
         <ul
           aria-label="Photo origin categories"
@@ -201,7 +205,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="border-t">
+      <section id="before-first-connect" className="scroll-mt-8 border-t">
         <div className="mx-auto max-w-4xl px-6 py-12 sm:px-10">
           <h2 className="font-heading text-xs tracking-wider text-muted-foreground uppercase">
             Before your first connect

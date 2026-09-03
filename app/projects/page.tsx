@@ -5,8 +5,10 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { ConnectCard, SetupCard } from "@/components/connect-card";
+import { CopyField } from "@/components/copy-field";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { APS_CLIENT_ID } from "@/lib/acc/app-id";
 import { listProjects, type AccProject } from "@/lib/acc/client";
 import {
   AuthorizationRequiredError,
@@ -72,12 +74,7 @@ async function ProjectList() {
   }
 
   if (projects.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Your Autodesk account has no Construction Cloud projects placed can
-        see.
-      </div>
-    );
+    return <NoProjectsCard />;
   }
 
   const hubs = new Map<string, AccProject[]>();
@@ -119,6 +116,42 @@ async function ProjectList() {
           </ul>
         </section>
       ))}
+      <form action={disconnectAction} className="justify-self-start">
+        <Button variant="ghost" size="sm" type="submit">
+          Disconnect Autodesk account
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+// Signed in, but Autodesk returned no hubs. Almost always this means an ACC
+// Account Admin hasn't provisioned the app yet — the API reports that as an
+// empty list, not an error, so this is where the instructions have to live.
+function NoProjectsCard() {
+  return (
+    <div className="grid gap-6 rounded-lg border border-dashed p-8">
+      <div>
+        <h2 className="font-heading text-sm font-semibold">
+          No projects visible yet
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          You&rsquo;re signed in, but Autodesk isn&rsquo;t showing placed any
+          Construction Cloud hubs. Usually that means an ACC Account Admin
+          hasn&rsquo;t added placed under{" "}
+          <span className="text-foreground">
+            Account Admin &rarr; Custom Integrations
+          </span>{" "}
+          yet. Send them this client ID &mdash; it&rsquo;s a one-time step per
+          account. Once it&rsquo;s in, reload this page.
+        </p>
+      </div>
+      <CopyField label="client ID" value={APS_CLIENT_ID} />
+      <p className="text-xs text-muted-foreground">
+        Already provisioned? Then your account has no ACC projects, or your
+        role can&rsquo;t see them &mdash; the same permissions apply as in
+        Autodesk Build.
+      </p>
       <form action={disconnectAction} className="justify-self-start">
         <Button variant="ghost" size="sm" type="submit">
           Disconnect Autodesk account
