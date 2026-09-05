@@ -1,7 +1,14 @@
 "use client";
 
 import { LngLatBounds } from "maplibre-gl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   Map,
@@ -55,6 +62,9 @@ const PITCH_3D = 50;
 interface PhotoMapProps {
   photos: PlacedPhoto[];
   projectName: string;
+  /** Replaces the project name in the stats bar with a picker, when the
+   * visitor has other projects to jump to */
+  projectSwitcher?: ReactNode;
   /** Present while pages are still streaming in from the source */
   progress?: LoadProgress | null;
   /** Viewport before data arrives (FitBounds takes over once pins exist) */
@@ -169,6 +179,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function PhotoMap({
   photos,
   projectName,
+  projectSwitcher,
   progress,
   fallbackCenter = [0, 20],
   fallbackZoom = 1.5,
@@ -429,9 +440,14 @@ export function PhotoMap({
         onViewportChange={handleViewportChange}
         attributionControl={{ compact: true }}
       >
-        {/* The compass is how rotation gets discovered and how a turned view
-            finds north again; on a flat, north-up map it would be clutter. */}
-        <MapControls position="bottom-right" showCompass={buildings3d} />
+        {/* The compass and the rotate/tilt buttons are how rotation gets
+            discovered and how a turned view finds north again; on a flat,
+            north-up map they would be clutter. */}
+        <MapControls
+          position="bottom-right"
+          showCompass={buildings3d}
+          showRotate={buildings3d}
+        />
         {/* First in the tree so a fresh style gets it at the bottom; the layer
             anchors itself beneath the rest when it mounts later. */}
         {buildings3d && <BuildingsLayer />}
@@ -451,6 +467,7 @@ export function PhotoMap({
       <div className="pointer-events-none absolute top-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 lg:max-w-[calc(100%-23rem)]">
         <StatsBar
           projectName={projectName}
+          projectSwitcher={projectSwitcher}
           photos={photos}
           locatedCount={located.length}
           shownCount={visible.length}

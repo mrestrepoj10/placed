@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import {
   Sheet,
@@ -22,6 +23,8 @@ export interface LoadProgress {
 
 interface StatsBarProps {
   projectName: string;
+  /** When set, renders in place of the project name */
+  projectSwitcher?: ReactNode;
   photos: PlacedPhoto[];
   locatedCount: number;
   /** Located photos surviving the active filters */
@@ -42,6 +45,7 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
  */
 export function StatsBar({
   projectName,
+  projectSwitcher,
   photos,
   locatedCount,
   shownCount,
@@ -52,13 +56,13 @@ export function StatsBar({
   return (
     <div className="pointer-events-auto rounded-lg border bg-background/90 shadow-sm backdrop-blur-sm">
       <div className="px-3.5 py-2.5">
-        <p className="font-heading text-sm font-semibold leading-tight">
+        <div className="flex items-center font-heading text-sm font-semibold leading-tight">
           <Link href="/" className="hover:underline">
             placed
           </Link>
           <span className="mx-1.5 text-muted-foreground/60">/</span>
-          {projectName}
-        </p>
+          {projectSwitcher ?? <span>{projectName}</span>}
+        </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {progress && (
             <span className="mr-2 inline-flex items-center gap-1">

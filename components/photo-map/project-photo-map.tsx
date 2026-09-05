@@ -5,7 +5,9 @@ import { RotateCcw } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import { ConnectCard, SetupCard } from "@/components/connect-card";
+import { ProjectSwitcher } from "@/components/project-switcher";
 import { Button } from "@/components/ui/button";
+import type { AccProjectCatalog } from "@/lib/acc/client";
 import type { PhotoPage } from "@/lib/photos/types";
 
 import { PhotoMap } from "./photo-map";
@@ -52,9 +54,12 @@ async function fetchPage(
 export function ProjectPhotoMap({
   projectId,
   projectName,
+  catalog,
 }: {
   projectId: string;
   projectName: string;
+  /** Every project this visitor can open — the stats bar's switcher */
+  catalog: AccProjectCatalog;
 }) {
   const {
     data,
@@ -109,6 +114,14 @@ export function ProjectPhotoMap({
       <PhotoMap
         photos={photos}
         projectName={projectName}
+        projectSwitcher={
+          <ProjectSwitcher
+            hubs={catalog.hubs}
+            projects={catalog.projects}
+            value={projectId}
+            className="w-auto max-w-64"
+          />
+        }
         progress={
           loading && !isError ? { loaded: photos.length, total: null } : null
         }

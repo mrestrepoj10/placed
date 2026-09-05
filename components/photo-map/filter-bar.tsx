@@ -193,7 +193,8 @@ export function FilterBar({
           </Toggle>
         </TooltipTrigger>
         <TooltipContent>
-          Basemap buildings in 3D from zoom 14 · right-drag to rotate and tilt
+          Basemap buildings in 3D from zoom 14 · rotate and tilt with the map
+          buttons, by dragging the compass, or by right-dragging the map
         </TooltipContent>
       </Tooltip>
     </div>
