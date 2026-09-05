@@ -18,7 +18,18 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
+import {
+  X,
+  Minus,
+  Plus,
+  Locate,
+  Maximize,
+  Loader2,
+  RotateCcw,
+  RotateCw,
+  ChevronsUp,
+  ChevronsDown,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -803,8 +814,11 @@ type MapControlsProps = {
   position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
   /** Show zoom in/out buttons (default: true) */
   showZoom?: boolean;
-  /** Show compass button to reset bearing (default: false) */
+  /** Show compass button to reset bearing (default: false). PATCHED: the
+   * compass also rotates and tilts the map by drag and by arrow keys. */
   showCompass?: boolean;
+  /** PATCHED: show rotate-left/right and tilt-up/down buttons (default: false) */
+  showRotate?: boolean;
   /** Show locate button to find user's location (default: false) */
   showLocate?: boolean;
   /** Show fullscreen toggle button (default: false) */
@@ -864,6 +878,7 @@ function MapControls({
   position = "bottom-right",
   showZoom = true,
   showCompass = false,
+  showRotate = false,
   showLocate = false,
   showFullscreen = false,
   className,
@@ -889,6 +904,25 @@ function MapControls({
     // the label has always said so.
     map?.resetNorth({ duration: 300 });
   }, [map]);
+
+  const rotateBy = useCallback(
+    (degrees: number) => {
+      map?.easeTo({ bearing: map.getBearing() + degrees, duration: 300 });
+    },
+    [map],
+  );
+
+  const tiltBy = useCallback(
+    (degrees: number) => {
+      if (!map) return;
+      const pitch = Math.min(
+        map.getMaxPitch(),
+        Math.max(map.getMinPitch(), map.getPitch() + degrees),
+      );
+      map.easeTo({ pitch, duration: 300 });
+    },
+    [map],
+  );
 
   const handleLocate = useCallback(() => {
     if (!("geolocation" in navigator)) return;
@@ -950,6 +984,28 @@ function MapControls({
           <CompassButton onClick={handleResetBearing} />
         </ControlGroup>
       )}
+      {showRotate && (
+        <ControlGroup>
+          <ControlButton
+            onClick={() => rotateBy(-ROTATE_STEP)}
+            label="Rotate counterclockwise"
+          >
+            <RotateCcw className="size-4" />
+          </ControlButton>
+          <ControlButton
+            onClick={() => rotateBy(ROTATE_STEP)}
+            label="Rotate clockwise"
+          >
+            <RotateCw className="size-4" />
+          </ControlButton>
+          <ControlButton onClick={() => tiltBy(TILT_STEP)} label="Tilt up">
+            <ChevronsUp className="size-4" />
+          </ControlButton>
+          <ControlButton onClick={() => tiltBy(-TILT_STEP)} label="Tilt down">
+            <ChevronsDown className="size-4" />
+          </ControlButton>
+        </ControlGroup>
+      )}
       {showLocate && (
         <ControlGroup>
           <ControlButton
@@ -976,9 +1032,90 @@ function MapControls({
   );
 }
 
+/** Degrees per rotate button press and per arrow key on the compass. */
+const ROTATE_STEP = 30;
+/** Degrees of pitch per tilt button press and per arrow key on the compass. */
+const TILT_STEP = 15;
+/** Pointer travel under which a compass press still counts as a click. */
+const CLICK_TOLERANCE_PX = 3;
+
+/**
+ * PATCHED from upstream, where the compass is a plain reset button. Here it
+ * is also the rotation handle, the way MapLibre's own NavigationControl works:
+ * dragging around the button turns the map by the angle swept around its
+ * centre, vertical travel tilts it, and a press that barely moves still
+ * resets north. Arrow keys do the same from the keyboard.
+ */
 function CompassButton({ onClick }: { onClick: () => void }) {
   const { map } = useMap();
   const compassRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    last: { x: number; y: number };
+    travelled: number;
+  } | null>(null);
+
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      last: { x: event.clientX, y: event.clientY },
+      travelled: 0,
+    };
+  }, []);
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = dragRef.current;
+      if (!map || !drag || drag.pointerId !== event.pointerId) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const centre = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const current = { x: event.clientX, y: event.clientY };
+      // Angle swept around the button's centre, as MapLibre computes it.
+      const before = Math.atan2(drag.last.y - centre.y, drag.last.x - centre.x);
+      const after = Math.atan2(current.y - centre.y, current.x - centre.x);
+      const bearingDelta = ((after - before) * 180) / Math.PI;
+      const pitchDelta = (current.y - drag.last.y) * -0.5;
+      drag.travelled += Math.hypot(current.x - drag.last.x, current.y - drag.last.y);
+      drag.last = current;
+      if (drag.travelled <= CLICK_TOLERANCE_PX) return;
+      map.setBearing(map.getBearing() + bearingDelta);
+      map.setPitch(
+        Math.min(map.getMaxPitch(), Math.max(map.getMinPitch(), map.getPitch() + pitchDelta)),
+      );
+    },
+    [map],
+  );
+
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      dragRef.current = null;
+      if (drag.travelled <= CLICK_TOLERANCE_PX) onClick();
+    },
+    [onClick],
+  );
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (!map) return;
+      const steps: Record<string, () => void> = {
+        ArrowLeft: () => map.easeTo({ bearing: map.getBearing() - ROTATE_STEP, duration: 300 }),
+        ArrowRight: () => map.easeTo({ bearing: map.getBearing() + ROTATE_STEP, duration: 300 }),
+        ArrowUp: () =>
+          map.easeTo({ pitch: Math.min(map.getMaxPitch(), map.getPitch() + TILT_STEP), duration: 300 }),
+        ArrowDown: () =>
+          map.easeTo({ pitch: Math.max(map.getMinPitch(), map.getPitch() - TILT_STEP), duration: 300 }),
+      };
+      const step = steps[event.key];
+      if (!step) return;
+      event.preventDefault();
+      step();
+    },
+    [map],
+  );
 
   useEffect(() => {
     if (!map || !compassRef.current) return;
@@ -1002,7 +1139,22 @@ function CompassButton({ onClick }: { onClick: () => void }) {
   }, [map]);
 
   return (
-    <ControlButton onClick={onClick} label="Reset bearing to north">
+    <button
+      type="button"
+      aria-label="Compass: drag or use arrow keys to rotate and tilt, press to reset north"
+      title="Drag to rotate and tilt · click to reset north"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "flex size-8 cursor-grab touch-none items-center justify-center transition-colors active:cursor-grabbing",
+        "first:rounded-t-md last:rounded-b-md",
+        "hover:bg-accent dark:hover:bg-accent/40",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+      )}
+    >
       <svg
         ref={compassRef}
         viewBox="0 0 24 24"
@@ -1014,7 +1166,7 @@ function CompassButton({ onClick }: { onClick: () => void }) {
         <path d="M12 22L16 12H12V22Z" className="fill-muted-foreground/60" />
         <path d="M12 22L8 12H12V22Z" className="fill-muted-foreground/30" />
       </svg>
-    </ControlButton>
+    </button>
   );
 }
 

@@ -50,6 +50,7 @@ function ProcoreIcon({ className }: { className?: string }) {
 }
 
 const REPO_URL = "https://github.com/mrestrepoj10/placed";
+const CANTERA_URL = "https://canteraui.vercel.app";
 
 
 const steps = [
@@ -252,9 +253,24 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t px-6 py-5 text-center text-xs text-muted-foreground sm:px-10">
-        Autodesk Construction Cloud stays the system of record. Placed is the
-        map on top of it.
+      <footer className="flex flex-col items-center gap-2 border-t px-6 py-5 text-center text-xs text-muted-foreground sm:px-10">
+        <p>
+          Autodesk Construction Cloud stays the system of record. Placed is the
+          map on top of it.
+        </p>
+        <p>
+          Built with{" "}
+          <a
+            href={CANTERA_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-4 hover:text-foreground"
+          >
+            cantera
+          </a>
+          , the shadcn registry for construction UI &mdash; sign-in, project
+          picker, and connection card are its components.
+        </p>
       </footer>
     </main>
   );

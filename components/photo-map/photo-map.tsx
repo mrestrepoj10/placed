@@ -440,9 +440,14 @@ export function PhotoMap({
         onViewportChange={handleViewportChange}
         attributionControl={{ compact: true }}
       >
-        {/* The compass is how rotation gets discovered and how a turned view
-            finds north again; on a flat, north-up map it would be clutter. */}
-        <MapControls position="bottom-right" showCompass={buildings3d} />
+        {/* The compass and the rotate/tilt buttons are how rotation gets
+            discovered and how a turned view finds north again; on a flat,
+            north-up map they would be clutter. */}
+        <MapControls
+          position="bottom-right"
+          showCompass={buildings3d}
+          showRotate={buildings3d}
+        />
         {/* First in the tree so a fresh style gets it at the bottom; the layer
             anchors itself beneath the rest when it mounts later. */}
         {buildings3d && <BuildingsLayer />}
