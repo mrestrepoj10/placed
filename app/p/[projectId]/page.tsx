@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { ProjectPhotoMap } from "@/components/photo-map/project-photo-map";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listProjects } from "@/lib/acc/client";
+import { listProjects, type AccProjectCatalog } from "@/lib/acc/client";
 import {
   AuthorizationRequiredError,
   ConnectNotConfiguredError,
@@ -51,13 +51,10 @@ async function ProjectView({
     );
   }
 
-  let projectName = "Project";
+  let catalog: AccProjectCatalog;
   try {
     const token = await getAccessToken(visitorId);
-    const projects = await listProjects(token);
-    projectName =
-      projects.find((project) => project.id === projectId)?.name ??
-      projectName;
+    catalog = await listProjects(token);
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
       return (
@@ -76,5 +73,15 @@ async function ProjectView({
     throw error;
   }
 
-  return <ProjectPhotoMap projectId={projectId} projectName={projectName} />;
+  const projectName =
+    catalog.projects.find((project) => project.id === projectId)?.name ??
+    "Project";
+
+  return (
+    <ProjectPhotoMap
+      projectId={projectId}
+      projectName={projectName}
+      catalog={catalog}
+    />
+  );
 }

@@ -6,10 +6,14 @@ import { Suspense } from "react";
 
 import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { CopyField } from "@/components/copy-field";
-import { Button } from "@/components/ui/button";
+import { ProjectSwitcher } from "@/components/project-switcher";
+import { ConnectionCard } from "@/components/ui/connection-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { APS_CLIENT_ID } from "@/lib/acc/app-id";
-import { listProjects, type AccProject } from "@/lib/acc/client";
+import { listProjects, type AccProjectCatalog } from "@/lib/acc/client";
+import { apsProvider } from "@/lib/aps-oauth-preset";
+import type { OAuthConnection } from "@/lib/oauth-types";
+import { groupProjectsByHub } from "@/lib/project-types";
 import {
   AuthorizationRequiredError,
   ConnectNotConfiguredError,
@@ -20,6 +24,20 @@ import { getVisitorId } from "@/lib/auth/visitor";
 import { disconnectAction } from "./actions";
 
 export const metadata: Metadata = { title: "Projects" };
+
+/**
+ * What placed knows about the grant: one data:read grant per visitor and
+ * never a profile (that would need a second scope), so the card shows the
+ * provider and scope, not an account.
+ */
+const autodeskGrant: OAuthConnection = {
+  provider: apsProvider,
+  status: "connected",
+  scopes: ["data:read"],
+};
+
+/** Past this many projects, searching a picker beats scanning the list. */
+const PICKER_THRESHOLD = 8;
 
 export default function ProjectsPage() {
   return (
@@ -59,10 +77,10 @@ async function ProjectList() {
     return <ConnectCard returnTo="/projects" />;
   }
 
-  let projects: AccProject[];
+  let catalog: AccProjectCatalog;
   try {
     const token = await getAccessToken(visitorId);
-    projects = await listProjects(token);
+    catalog = await listProjects(token);
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
       return <ConnectCard returnTo="/projects" />;
@@ -73,23 +91,20 @@ async function ProjectList() {
     throw error;
   }
 
+  const { hubs, projects } = catalog;
   if (projects.length === 0) {
     return <NoProjectsCard />;
   }
 
-  const hubs = new Map<string, AccProject[]>();
-  for (const project of projects) {
-    const group = hubs.get(project.hubName) ?? [];
-    group.push(project);
-    hubs.set(project.hubName, group);
-  }
-
   return (
     <div className="grid gap-8">
-      {[...hubs.entries()].map(([hubName, hubProjects]) => (
-        <section key={hubName}>
+      {projects.length > PICKER_THRESHOLD && (
+        <ProjectSwitcher hubs={hubs} projects={projects} />
+      )}
+      {groupProjectsByHub(hubs, projects).map(({ hub, projects: hubProjects }) => (
+        <section key={hub?.id ?? "orphans"}>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {hubName}
+            {hub?.name ?? "Other"}
           </h2>
           <ul className="grid gap-2">
             {hubProjects.map((project) => (
@@ -116,11 +131,7 @@ async function ProjectList() {
           </ul>
         </section>
       ))}
-      <form action={disconnectAction} className="justify-self-start">
-        <Button variant="ghost" size="sm" type="submit">
-          Disconnect Autodesk account
-        </Button>
-      </form>
+      <ConnectionCard connection={autodeskGrant} onDisconnect={disconnectAction} />
     </div>
   );
 }
@@ -152,11 +163,7 @@ function NoProjectsCard() {
         role can&rsquo;t see them &mdash; the same permissions apply as in
         Autodesk Build.
       </p>
-      <form action={disconnectAction} className="justify-self-start">
-        <Button variant="ghost" size="sm" type="submit">
-          Disconnect Autodesk account
-        </Button>
-      </form>
+      <ConnectionCard connection={autodeskGrant} onDisconnect={disconnectAction} />
     </div>
   );
 }

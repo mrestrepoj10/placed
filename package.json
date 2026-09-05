@@ -17,6 +17,8 @@
     "aec-auth": "^0.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "cn": "^0.2.5",
     "echarts": "^6.1.0",
     "lucide-react": "^1.33.0",
     "maplibre-gl": "^6.5.0",

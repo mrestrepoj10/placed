@@ -23,6 +23,7 @@
   "menuAccent": "subtle",
   "registries": {
     "@mapcn": "https://mapcn.dev/r/{name}.json",
-    "@evilcharts": "https://evilcharts.com/r/{name}.json"
+    "@evilcharts": "https://evilcharts.com/r/{name}.json",
+    "@cantera": "https://canteraui.vercel.app/r/{name}.json"
   }
 }

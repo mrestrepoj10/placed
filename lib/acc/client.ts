@@ -1,5 +1,7 @@
 import "server-only";
 
+import { fromApsHub, fromApsProject } from "@/lib/aps-data-preset";
+import type { Hub, Project } from "@/lib/project-types";
 import type { PhotoPage } from "@/lib/photos/types";
 import {
   isVisibleAccPhoto,
@@ -52,40 +54,52 @@ async function accFetch<T>(
 
 // --- Project enumeration (Data Management API) ---
 
-export interface AccProject {
-  /** Bare UUID — the format the Photos API expects (DM's "b." prefix stripped) */
-  id: string;
-  name: string;
-  hubName: string;
+/**
+ * The hubs and projects this user can see, in the generic cantera shapes the
+ * pickers take. Project ids are bare UUIDs — the format the Photos API
+ * expects (Data Management's "b." prefix stripped); hub ids stay as DM
+ * returns them.
+ */
+export interface AccProjectCatalog {
+  hubs: Hub[];
+  projects: Project[];
 }
 
-interface DmEntity {
+interface DmDocument {
   id: string;
-  attributes: { name: string };
+  attributes?: { name?: string; region?: string };
+  relationships?: { hub?: { data?: { id?: string } } };
 }
 
-/** ACC/BIM 360 hubs and their projects visible to this user. */
-export async function listProjects(token: string): Promise<AccProject[]> {
-  const hubs = await accFetch<{ data: DmEntity[] }>(token, "/project/v1/hubs");
-  const accHubs = hubs.data.filter((hub) => hub.id.startsWith("b."));
+export async function listProjects(token: string): Promise<AccProjectCatalog> {
+  const hubsResponse = await accFetch<{ data: DmDocument[] }>(
+    token,
+    "/project/v1/hubs",
+  );
+  // ACC/BIM 360 hubs only — the Photos API has no equivalent for Fusion Team
+  const hubs = hubsResponse.data
+    .filter((hub) => hub.id.startsWith("b."))
+    .map(fromApsHub)
+    .sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }));
 
   const perHub = await Promise.all(
-    accHubs.map(async (hub) => {
-      const projects = await accFetch<{ data: DmEntity[] }>(
+    hubs.map(async (hub) => {
+      const response = await accFetch<{ data: DmDocument[] }>(
         token,
         `/project/v1/hubs/${hub.id}/projects`,
       );
-      return projects.data.map((project) => ({
-        id: project.id.replace(/^b\./, ""),
-        name: project.attributes.name,
-        hubName: hub.attributes.name,
-      }));
+      return response.data.map((doc) => {
+        const project = fromApsProject(doc);
+        return { ...project, id: project.id.replace(/^b\./, ""), hubId: hub.id };
+      });
     }),
   );
 
-  return perHub
+  const projects = perHub
     .flat()
     .sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }));
+
+  return { hubs, projects };
 }
 
 // --- Photos API ---
