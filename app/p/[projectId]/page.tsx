@@ -5,10 +5,10 @@ import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { ProjectPhotoMap } from "@/components/photo-map/project-photo-map";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listProjects, type AccProjectCatalog } from "@/lib/acc/client";
+import { withAccToken } from "@/lib/acc/with-token";
 import {
   AuthorizationRequiredError,
   ConnectNotConfiguredError,
-  getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
 
@@ -53,8 +53,7 @@ async function ProjectView({
 
   let catalog: AccProjectCatalog;
   try {
-    const token = await getAccessToken(visitorId);
-    catalog = await listProjects(token);
+    catalog = await withAccToken(visitorId, listProjects);
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
       return (

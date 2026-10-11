@@ -169,12 +169,16 @@ const USERS_PAGE_LIMIT = 200; // Admin API maximum
 /** Enough for any real project team; a runaway loop costs nothing past it. */
 const MAX_USER_PAGES = 25;
 
-/** Null when the caller can't read it — a hidden legend, not an error. */
+/**
+ * Null when the caller may not read it — a hidden legend, not an error. A 401
+ * still throws: that's a stale token, which the caller retries with a fresh
+ * one (see `withAccToken`), not a permission answer.
+ */
 async function optional<T>(request: Promise<T>): Promise<T | null> {
   try {
     return await request;
   } catch (error) {
-    if (error instanceof AccApiError && [401, 403, 404].includes(error.status)) {
+    if (error instanceof AccApiError && [403, 404].includes(error.status)) {
       return null;
     }
     throw error;

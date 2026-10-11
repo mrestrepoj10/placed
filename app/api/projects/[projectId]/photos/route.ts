@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AccApiError, listPhotoPage } from "@/lib/acc/client";
+import { withAccToken } from "@/lib/acc/with-token";
 import {
   AuthorizationRequiredError,
   ConnectNotConfiguredError,
-  getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
 
@@ -30,9 +30,10 @@ export async function GET(
   }
 
   try {
-    const token = await getAccessToken(visitorId);
     const cursor = request.nextUrl.searchParams.get("cursor");
-    const page = await listPhotoPage(token, projectId, cursor);
+    const page = await withAccToken(visitorId, (token) =>
+      listPhotoPage(token, projectId, cursor),
+    );
     return NextResponse.json(page);
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
