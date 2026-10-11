@@ -18,18 +18,37 @@ import {
   type MapRef,
   type MapViewport,
 } from "@/components/ui/map";
-import { categoryColorExpression } from "@/lib/photos/categories";
+import {
+  CATEGORY_META,
+  categoryColorExpression,
+  categoryCssColor,
+} from "@/lib/photos/categories";
 import { buildCoverageGrid } from "@/lib/photos/coverage";
 import {
   DEFAULT_FILTERS,
   matchesFilters,
+  type GroupResolver,
   type PhotoFilters,
 } from "@/lib/photos/filters";
 import {
   toPhotoFeatureCollection,
   type PhotoFeatureCollection,
 } from "@/lib/photos/geojson";
+import {
+  companyEntries,
+  GROUP_DIMENSIONS,
+  groupColorExpression,
+  PHASE_META,
+  phaseOf,
+  PHOTO_PHASES,
+  projectWindow,
+  themedCssColor,
+  type GroupDimension,
+  type GroupEntry,
+  type PhotoPhase,
+} from "@/lib/photos/groupings";
 import type { MapMode } from "@/lib/photos/map-modes";
+import type { ProjectContext } from "@/lib/photos/project-context";
 import { recencyColorExpression } from "@/lib/photos/recency";
 import {
   hasLocation,
@@ -46,7 +65,7 @@ import { BuildingsLayer } from "./buildings-layer";
 import { CoverageLayer } from "./coverage-layer";
 import { FilterBar } from "./filter-bar";
 import { PHOTO_LAYER_PREFIX } from "./layer-ids";
-import { Legend } from "./legend";
+import { Legend, type LegendEntry } from "./legend";
 import { PhotoHoverCard } from "./photo-hover-card";
 import { PhotoPanel } from "./photo-panel";
 import { SelectedPin } from "./selected-pin";
@@ -67,20 +86,36 @@ interface PhotoMapProps {
   projectSwitcher?: ReactNode;
   /** Present while pages are still streaming in from the source */
   progress?: LoadProgress | null;
+  /**
+   * Project dates and members, when the source can supply them — unlocks the
+   * phase and company legends. Absent or partial is fine; the legend only
+   * offers what this can answer.
+   */
+  context?: ProjectContext | null;
   /** Viewport before data arrives (FitBounds takes over once pins exist) */
   fallbackCenter?: [number, number];
   fallbackZoom?: number;
 }
 
 /** Category-, recency- or coverage-colored layers; colors follow the theme. */
+const PHASE_ENTRIES: GroupEntry[] = PHOTO_PHASES.map((phase) => ({
+  key: phase,
+  ...PHASE_META[phase],
+}));
+
 function PhotoLayers({
   collection,
   mode,
+  dimension,
+  companies,
   asOf,
   onSelect,
 }: {
   collection: PhotoFeatureCollection;
   mode: MapMode;
+  dimension: GroupDimension;
+  /** Company rows, when the company grouping is available */
+  companies: readonly GroupEntry[] | null;
   /** Null until the client has read the clock — see the effect in PhotoMap */
   asOf: number | null;
   onSelect: (id: string) => void;
@@ -88,13 +123,18 @@ function PhotoLayers({
   const { resolvedTheme } = useMap();
   const theme = resolvedTheme === "dark" ? "dark" : "light";
 
-  const pointColor = useMemo(
-    () =>
-      mode === "categories" || asOf === null
-        ? categoryColorExpression(theme)
-        : recencyColorExpression(theme, asOf),
-    [mode, theme, asOf],
-  );
+  const pointColor = useMemo(() => {
+    if (mode !== "categories" && asOf !== null) {
+      return recencyColorExpression(theme, asOf);
+    }
+    if (dimension === "phase") {
+      return groupColorExpression("phase", PHASE_ENTRIES, theme);
+    }
+    if (dimension === "company" && companies) {
+      return groupColorExpression("company", companies, theme);
+    }
+    return categoryColorExpression(theme);
+  }, [mode, dimension, companies, theme, asOf]);
   const clusterColors = useMemo<[string, string, string]>(
     () =>
       theme === "dark"
@@ -167,6 +207,37 @@ function FollowSelection({ photo }: { photo: PlacedPhoto | null }) {
   return null;
 }
 
+const captionDate = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function formatDay(value: string | null): string | null {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : captionDate.format(date);
+}
+
+/** The line under a grouped legend saying what it was cut against. */
+function groupCaption(
+  dimension: GroupDimension,
+  context: ProjectContext | null,
+): string | undefined {
+  if (dimension === "phase" && context) {
+    const start = formatDay(context.startDate);
+    const end = formatDay(context.endDate);
+    if (start && end) return `Project dates ${start} – ${end}`;
+    if (start) return `Project start ${start}`;
+    if (end) return `Project end ${end}`;
+  }
+  if (dimension === "company") {
+    return "By the uploader's company on the project";
+  }
+  return undefined;
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
@@ -181,6 +252,7 @@ export function PhotoMap({
   projectName,
   projectSwitcher,
   progress,
+  context = null,
   fallbackCenter = [0, 20],
   fallbackZoom = 1.5,
 }: PhotoMapProps) {
@@ -193,6 +265,7 @@ export function PhotoMap({
   const [filters, setFilters] = useState<PhotoFilters>(DEFAULT_FILTERS);
   const [mode, setMode] = useState<MapMode>("categories");
   const [buildings3d, setBuildings3d] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupDimension>("origin");
   const mapRef = useRef<MapRef>(null);
 
   // Everything the prerender cannot know: the query string (the shell is
@@ -208,6 +281,7 @@ export function PhotoMap({
     setFilters(restored.filters);
     setMode(restored.mode);
     setBuildings3d(restored.buildings3d);
+    setGroupBy(restored.groupBy);
     setNow(Date.now());
     /* eslint-enable react-hooks/set-state-in-effect */
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -220,42 +294,149 @@ export function PhotoMap({
   );
   const located = useMemo(() => photos.filter(hasLocation), [photos]);
 
+  // The context-dependent groupings. Company colors are ranked over every
+  // located photo, not the filtered set, so a company keeps its color while
+  // the viewer brushes and filters.
+  const projectSpan = useMemo(
+    () => (context ? projectWindow(context) : null),
+    [context],
+  );
+  const companies = useMemo(
+    () =>
+      context?.members && located.some((photo) => photo.createdBy !== null)
+        ? companyEntries(located, context.members)
+        : null,
+    [context, located],
+  );
+  const groups = useMemo<GroupResolver>(
+    () => ({
+      ...(projectSpan && {
+        phaseOf: (photo: PlacedPhoto) => phaseOf(photo, projectSpan),
+      }),
+      ...(companies && { companyOf: companies.keyOf }),
+    }),
+    [projectSpan, companies],
+  );
+  const dimensions = useMemo(
+    () =>
+      GROUP_DIMENSIONS.filter(
+        (dimension) =>
+          dimension === "origin" ||
+          (dimension === "phase" && projectSpan !== null) ||
+          (dimension === "company" && companies !== null),
+      ),
+    [projectSpan, companies],
+  );
+  // A link can name a grouping this project can't answer (or can't yet, while
+  // the context loads); origin stands in without rewriting the URL.
+  const dimension = dimensions.includes(groupBy) ? groupBy : "origin";
+
   // Facet counts exclude their own facet, so a control always shows what
   // picking a different value in it would give you.
   const locatedCounts = useMemo(() => {
     const counts = {} as Record<PhotoCategory, number>;
     for (const category of PHOTO_CATEGORIES) counts[category] = 0;
     for (const photo of located) {
-      if (matchesFilters(photo, filters, "categories")) {
+      if (matchesFilters(photo, filters, "categories", groups)) {
         counts[photo.category] += 1;
       }
     }
     return counts;
-  }, [located, filters]);
+  }, [located, filters, groups]);
 
   const mediaTypeCounts = useMemo(() => {
     const counts = {} as Record<PhotoMediaType, number>;
     for (const type of PHOTO_MEDIA_TYPES) counts[type] = 0;
     for (const photo of located) {
-      if (matchesFilters(photo, filters, "mediaTypes")) {
+      if (matchesFilters(photo, filters, "mediaTypes", groups)) {
         counts[photo.mediaType] += 1;
       }
     }
     return counts;
-  }, [located, filters]);
+  }, [located, filters, groups]);
+
+  const legendEntries = useMemo<LegendEntry[]>(() => {
+    if (dimension === "phase" && groups.phaseOf) {
+      const counts = new globalThis.Map<PhotoPhase, number>();
+      for (const photo of located) {
+        if (!matchesFilters(photo, filters, "phases", groups)) continue;
+        const phase = groups.phaseOf(photo);
+        counts.set(phase, (counts.get(phase) ?? 0) + 1);
+      }
+      return PHOTO_PHASES.map((phase) => ({
+        key: phase,
+        label: PHASE_META[phase].label,
+        color: themedCssColor(PHASE_META[phase].color),
+        count: counts.get(phase) ?? 0,
+        active: filters.phases.has(phase),
+      }));
+    }
+    if (dimension === "company" && companies && groups.companyOf) {
+      const counts = new globalThis.Map<string, number>();
+      for (const photo of located) {
+        if (!matchesFilters(photo, filters, "companies", groups)) continue;
+        const key = groups.companyOf(photo);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      return companies.entries.map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        color: themedCssColor(entry.color),
+        count: counts.get(entry.key) ?? 0,
+        active: !filters.hiddenCompanies.has(entry.key),
+      }));
+    }
+    return PHOTO_CATEGORIES.map((category) => ({
+      key: category,
+      label: CATEGORY_META[category].label,
+      color: categoryCssColor(category),
+      count: locatedCounts[category],
+      active: filters.categories.has(category),
+    }));
+  }, [dimension, groups, companies, located, filters, locatedCounts]);
+
+  const hiddenOrigins = PHOTO_CATEGORIES.filter(
+    (category) => locatedCounts[category] > 0 && !filters.categories.has(category),
+  ).length;
+
+  // Filters set in a legend you've stepped away from still hide pins; say so
+  // under the one on screen, so a thinner map never goes unexplained.
+  const hiddenElsewhere = useMemo(() => {
+    const notes: string[] = [];
+    const plural = (n: number, word: string) =>
+      n === 1 ? `1 ${word}` : `${n} ${word === "company" ? "companies" : `${word}s`}`;
+    if (dimension !== "origin" && hiddenOrigins > 0) {
+      notes.push(plural(hiddenOrigins, "origin"));
+    }
+    if (dimension !== "phase" && groups.phaseOf) {
+      const hidden = PHOTO_PHASES.filter((phase) => !filters.phases.has(phase));
+      if (hidden.length > 0) notes.push(plural(hidden.length, "phase"));
+    }
+    if (dimension !== "company" && companies) {
+      const hidden = companies.entries.filter((entry) =>
+        filters.hiddenCompanies.has(entry.key),
+      );
+      if (hidden.length > 0) notes.push(plural(hidden.length, "company"));
+    }
+    return notes.length > 0 ? `${notes.join(", ")} filtered out` : undefined;
+  }, [dimension, hiddenOrigins, groups, companies, filters]);
 
   const timelinePhotos = useMemo(
-    () => located.filter((photo) => matchesFilters(photo, filters, "date")),
-    [located, filters],
+    () =>
+      located.filter((photo) => matchesFilters(photo, filters, "date", groups)),
+    [located, filters, groups],
   );
 
   const visible = useMemo(
-    () => located.filter((photo) => matchesFilters(photo, filters)),
-    [located, filters],
+    () =>
+      located.filter((photo) =>
+        matchesFilters(photo, filters, undefined, groups),
+      ),
+    [located, filters, groups],
   );
   const collection = useMemo(
-    () => toPhotoFeatureCollection(visible),
-    [visible],
+    () => toPhotoFeatureCollection(visible, groups),
+    [visible, groups],
   );
 
   // Recency is measured from the brush's right edge when there is one, so
@@ -275,10 +456,10 @@ export function PhotoMap({
 
   // The URL trails the live state; every writer reads the latest through refs
   // so a viewport tick can't publish a stale filter set, or vice versa.
-  const stateRef = useRef({ selectedId, filters, mode, buildings3d });
+  const stateRef = useRef({ selectedId, filters, mode, buildings3d, groupBy });
   useEffect(() => {
-    stateRef.current = { selectedId, filters, mode, buildings3d };
-  }, [selectedId, filters, mode, buildings3d]);
+    stateRef.current = { selectedId, filters, mode, buildings3d, groupBy };
+  }, [selectedId, filters, mode, buildings3d, groupBy]);
 
   const publish = useCallback((viewport: MapViewport | null) => {
     const {
@@ -286,6 +467,7 @@ export function PhotoMap({
       filters: current,
       mode: currentMode,
       buildings3d: current3d,
+      groupBy: currentGroupBy,
     } = stateRef.current;
     writeUrlState({
       photoId,
@@ -293,6 +475,7 @@ export function PhotoMap({
       filters: current,
       mode: currentMode,
       buildings3d: current3d,
+      groupBy: currentGroupBy,
     });
   }, []);
 
@@ -318,6 +501,15 @@ export function PhotoMap({
     (next: MapMode) => {
       setMode(next);
       stateRef.current = { ...stateRef.current, mode: next };
+      publish(null);
+    },
+    [publish],
+  );
+
+  const updateGroupBy = useCallback(
+    (next: GroupDimension) => {
+      setGroupBy(next);
+      stateRef.current = { ...stateRef.current, groupBy: next };
       publish(null);
     },
     [publish],
@@ -360,14 +552,33 @@ export function PhotoMap({
     [],
   );
 
-  const toggleCategory = useCallback(
-    (category: PhotoCategory) => {
-      const next = new Set(stateRef.current.filters.categories);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      updateFilters({ ...stateRef.current.filters, categories: next });
+  const toggleGroup = useCallback(
+    (key: string) => {
+      const current = stateRef.current.filters;
+      const flip = <T,>(set: ReadonlySet<T>, value: T) => {
+        const next = new Set(set);
+        if (next.has(value)) next.delete(value);
+        else next.add(value);
+        return next;
+      };
+      if (dimension === "phase") {
+        updateFilters({
+          ...current,
+          phases: flip(current.phases, key as PhotoPhase),
+        });
+      } else if (dimension === "company") {
+        updateFilters({
+          ...current,
+          hiddenCompanies: flip(current.hiddenCompanies, key),
+        });
+      } else {
+        updateFilters({
+          ...current,
+          categories: flip(current.categories, key as PhotoCategory),
+        });
+      }
     },
-    [updateFilters],
+    [dimension, updateFilters],
   );
 
   const setDateRange = useCallback(
@@ -455,6 +666,8 @@ export function PhotoMap({
         <PhotoLayers
           collection={collection}
           mode={mode}
+          dimension={dimension}
+          companies={companies?.entries ?? null}
           asOf={asOf}
           onSelect={select}
         />
@@ -490,9 +703,17 @@ export function PhotoMap({
 
       <Legend
         mode={mode}
-        counts={locatedCounts}
-        active={filters.categories}
-        onToggle={toggleCategory}
+        dimension={dimension}
+        dimensions={dimensions}
+        onDimensionChange={updateGroupBy}
+        entries={legendEntries}
+        onToggle={toggleGroup}
+        groupCaption={
+          [groupCaption(dimension, context), hiddenElsewhere]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
+        hiddenOrigins={hiddenOrigins}
         coverage={coverage}
         asOf={asOf}
         asOfFromBrush={asOfFromBrush}

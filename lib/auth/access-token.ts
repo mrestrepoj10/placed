@@ -24,7 +24,15 @@ import { revokeToken, startAuthorization } from "@vercel/connect";
 // so a connector named `autodesk` against APS always gets this UID.
 const CONNECTOR =
   process.env.CONNECT_CONNECTOR ?? "developer.api.autodesk.com/autodesk";
-const SCOPES = ["data:read"];
+// What a visitor is asked to consent to. `account:read` unlocks the project
+// dates and member list behind the phase and company legends.
+const CONSENT_SCOPES = ["data:read", "account:read"];
+// Grants from before `account:read` was requested. Connect only issues a
+// token for a scope set the grant matches exactly, so these need asking for
+// by their own set — a subset of a newer grant is refused, too.
+const LEGACY_SCOPES = ["data:read"];
+/** For the Admin API: only a current grant can answer. */
+export const ACCOUNT_SCOPES = CONSENT_SCOPES;
 
 const tokens = connectTokenSource({ connectors: { aps: CONNECTOR } });
 
@@ -56,13 +64,36 @@ function isConfigurationError(error: unknown): boolean {
   );
 }
 
-/** A short-lived APS access token for this visitor's Autodesk grant. */
-export async function getAccessToken(visitorId: string): Promise<string> {
+/**
+ * A short-lived APS access token for this visitor's Autodesk grant. Pass
+ * `ACCOUNT_SCOPES` for the Admin API; a grant that predates that scope fails
+ * with `AuthorizationRequiredError`, which callers of optional data treat as
+ * "not available" rather than sending the visitor back through consent.
+ */
+export async function getAccessToken(
+  visitorId: string,
+  scopes?: readonly string[],
+): Promise<string> {
+  if (scopes) return requestToken(visitorId, scopes);
+  // Data API callers work with either grant: the current one first, then the
+  // legacy `data:read`-only grant, so nobody has to reconnect for photos.
+  try {
+    return await requestToken(visitorId, CONSENT_SCOPES);
+  } catch (error) {
+    if (!(error instanceof AuthorizationRequiredError)) throw error;
+    return requestToken(visitorId, LEGACY_SCOPES);
+  }
+}
+
+async function requestToken(
+  visitorId: string,
+  scopes: readonly string[],
+): Promise<string> {
   try {
     const { token } = await tokens.getToken({
       provider: "aps",
       subject: { type: "user", id: visitorId },
-      scopes: SCOPES,
+      scopes: [...scopes],
     });
     return token;
   } catch (error) {
@@ -94,7 +125,7 @@ export async function getAuthorizationUrl(
   try {
     const { url } = await startAuthorization(
       CONNECTOR,
-      { subject: { type: "user", id: visitorId }, scopes: SCOPES },
+      { subject: { type: "user", id: visitorId }, scopes: CONSENT_SCOPES },
       { callbackUrl },
     );
     return url;

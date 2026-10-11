@@ -11,6 +11,7 @@ export interface AccPhoto {
   type?: string;
   mediaType?: string;
   createdAt: string;
+  createdBy?: string | null;
   takenAt?: string | null;
   deletedAt?: string | null;
   latitude?: number | null;
@@ -74,6 +75,7 @@ export function normalizeAccPhoto(
     mediaType: MEDIA_TYPE[mediaType] ?? "photo",
     takenAt: photo.takenAt ?? null,
     createdAt: photo.createdAt,
+    createdBy: photo.createdBy?.trim() || null,
     latitude: photo.latitude ?? null,
     longitude: photo.longitude ?? null,
     thumbnailUrl: `/api/projects/${projectId}/photos/${photo.id}/thumbnail`,

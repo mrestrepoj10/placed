@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
@@ -8,6 +8,7 @@ import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { Button } from "@/components/ui/button";
 import type { AccProjectCatalog } from "@/lib/acc/client";
+import type { ProjectContext } from "@/lib/photos/project-context";
 import type { PhotoPage } from "@/lib/photos/types";
 
 import { PhotoMap } from "./photo-map";
@@ -46,6 +47,21 @@ async function fetchPage(
 }
 
 /**
+ * Project dates and members for the phase and company legends. Best effort:
+ * any failure resolves to null and the map offers only the origin legend.
+ */
+async function fetchContext(projectId: string): Promise<ProjectContext | null> {
+  try {
+    const response = await fetch(`/api/projects/${projectId}/context`);
+    if (!response.ok) return null;
+    const body: { context?: ProjectContext } = await response.json();
+    return body.context ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Streams the project's photo gallery through the serial ACC cursor: each
  * resolved page immediately densifies the map, and the next page starts
  * fetching until the cursor runs dry. React Query supplies retry, cross-
@@ -78,6 +94,15 @@ export function ProjectPhotoMap({
       err instanceof ApiError && err.status === 401
         ? false
         : failureCount < 3,
+  });
+
+  // Fetched alongside the first photo page, never blocking it: the legends it
+  // unlocks appear whenever it lands.
+  const { data: context } = useQuery({
+    queryKey: ["project-context", projectId],
+    queryFn: () => fetchContext(projectId),
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 
   // Auto-advance the serial cursor while pages remain
@@ -114,6 +139,7 @@ export function ProjectPhotoMap({
       <PhotoMap
         photos={photos}
         projectName={projectName}
+        context={context ?? null}
         projectSwitcher={
           <ProjectSwitcher
             hubs={catalog.hubs}

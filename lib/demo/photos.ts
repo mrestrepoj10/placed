@@ -1,3 +1,4 @@
+import type { ProjectContext, ProjectMember } from "@/lib/photos/project-context";
 import type {
   PhotoCategory,
   PhotoMediaType,
@@ -169,6 +170,68 @@ function buildSpots(): Spot[] {
   return spots;
 }
 
+// --- Who took them ---
+
+/**
+ * The project team, keyed by the id photos carry in `createdBy`. Crews favor
+ * the parts of the site they work on — the utility contractor owns the
+ * corridor, the concrete and steel subs the building pad — so the company
+ * legend shows a spatial story, not confetti.
+ */
+const COMPANIES = {
+  gc: "Southline Builders",
+  concrete: "Lone Star Concrete",
+  mep: "Capitol MEP",
+  steel: "Hill Country Steel",
+  utility: "Austin Civil Utilities",
+  owner: "City of Southline (Owner)",
+} as const;
+
+type CompanyKey = keyof typeof COMPANIES;
+
+const MEMBERS: Array<{ id: string; name: string; company: CompanyKey }> = [
+  { id: "DEMOGC01", name: "Rosa Delgado", company: "gc" },
+  { id: "DEMOGC02", name: "Marcus Hill", company: "gc" },
+  { id: "DEMOCN01", name: "Luis Ortega", company: "concrete" },
+  { id: "DEMOMP01", name: "Priya Shah", company: "mep" },
+  { id: "DEMOST01", name: "Dale Becker", company: "steel" },
+  { id: "DEMOUT01", name: "Tasha Greene", company: "utility" },
+  { id: "DEMOUT02", name: "Ken Ito", company: "utility" },
+  { id: "DEMOOW01", name: "Alex Romero", company: "owner" },
+];
+
+// Its own seed, so adding uploaders didn't move a single demo pin.
+const crewRand = mulberry32(0x5eed);
+
+/** Weighted company draw per site zone (spot index ranges from buildSpots). */
+function companyFor(spotIndex: number): CompanyKey {
+  const zone =
+    spotIndex < 50
+      ? "pad"
+      : spotIndex < 84
+        ? "corridor"
+        : spotIndex < 98
+          ? "yard"
+          : "other";
+  const weights: Record<string, Array<[CompanyKey, number]>> = {
+    pad: [["gc", 0.4], ["concrete", 0.25], ["steel", 0.15], ["mep", 0.15], ["owner", 0.05]],
+    corridor: [["utility", 0.75], ["gc", 0.2], ["owner", 0.05]],
+    yard: [["gc", 0.6], ["steel", 0.25], ["mep", 0.15]],
+    other: [["gc", 0.5], ["owner", 0.3], ["utility", 0.2]],
+  };
+  let r = crewRand();
+  for (const [company, weight] of weights[zone]) {
+    if ((r -= weight) < 0) return company;
+  }
+  return "gc";
+}
+
+function uploaderFor(spotIndex: number): string {
+  const company = companyFor(spotIndex);
+  const crew = MEMBERS.filter((member) => member.company === company);
+  return crew[Math.floor(crewRand() * crew.length)].id;
+}
+
 function round6(n: number): number {
   return Math.round(n * 1e6) / 1e6;
 }
@@ -185,6 +248,7 @@ function buildPhotos(): PlacedPhoto[] {
       mediaType,
       takenAt: new Date(takenAt).toISOString(),
       createdAt: new Date(takenAt + 40 * 60 * 1000).toISOString(),
+      createdBy: uploaderFor(i),
       latitude: spot.lat === null ? null : round6(spot.lat),
       longitude: spot.lng === null ? null : round6(spot.lng),
       thumbnailUrl: `/demo/thumbs/${category}.svg`,
@@ -196,3 +260,23 @@ function buildPhotos(): PlacedPhoto[] {
 }
 
 export const DEMO_PHOTOS: PlacedPhoto[] = buildPhotos();
+
+/**
+ * Project facts for the demo's phase and company legends. The start date
+ * falls three weeks into the photo window, so the pre-construction survey
+ * photos read as "Before start".
+ */
+export const DEMO_CONTEXT: ProjectContext = {
+  startDate: "2026-06-08",
+  endDate: "2027-03-31",
+  members: Object.fromEntries(
+    MEMBERS.map((member): [string, ProjectMember] => [
+      member.id,
+      {
+        name: member.name,
+        companyId: `demo-${member.company}`,
+        companyName: COMPANIES[member.company],
+      },
+    ]),
+  ),
+};

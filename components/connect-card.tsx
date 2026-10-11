@@ -54,9 +54,10 @@ export function ConnectCard({ returnTo }: { returnTo: string }) {
       title={<span className="font-heading text-lg">Connect your Autodesk account</span>}
       description={
         <>
-          Placed reads your Construction Cloud photo metadata — read-only (
-          <code className="font-mono text-xs">data:read</code>), scoped to what
-          your account can already see, and never stored.
+          Placed reads your Construction Cloud photo metadata and project
+          team — read-only (<code className="font-mono text-xs">data:read</code>,{" "}
+          <code className="font-mono text-xs">account:read</code>), scoped to
+          what your account can already see, and never stored.
         </>
       }
       footer={

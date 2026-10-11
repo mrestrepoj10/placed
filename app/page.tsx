@@ -232,9 +232,11 @@ export default function LandingPage() {
           </h2>
           <p className="mt-4 max-w-prose text-sm leading-relaxed text-pretty text-muted-foreground">
             Placed signs you in through Autodesk&rsquo;s own OAuth flow and asks
-            for a single scope &mdash;{" "}
-            <code className="font-mono">data:read</code>. It never sees your
-            password, and it cannot write to your project.
+            for two read-only scopes &mdash;{" "}
+            <code className="font-mono">data:read</code> for photos and{" "}
+            <code className="font-mono">account:read</code> for project dates
+            and the team behind the phase and company legends. It never sees
+            your password, and it cannot write to your project.
           </p>
 
           <dl className="mt-9 grid gap-x-10 gap-y-7 sm:grid-cols-2">
