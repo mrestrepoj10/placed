@@ -6,8 +6,10 @@ import type { GeoJSONSource } from "maplibre-gl";
 import { useMap } from "@/components/ui/map";
 import { hasLocation, type PlacedPhoto } from "@/lib/photos/types";
 
+import { SELECTED_PIN_LAYER_ID } from "./layer-ids";
+
 const SOURCE_ID = "selected-photo-source";
-const LAYER_ID = "selected-photo-ring";
+const LAYER_ID = SELECTED_PIN_LAYER_ID;
 
 const EMPTY: GeoJSON.FeatureCollection<GeoJSON.Point> = {
   type: "FeatureCollection",

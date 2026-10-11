@@ -59,12 +59,16 @@ import {
   type PhotoMediaType,
   type PlacedPhoto,
 } from "@/lib/photos/types";
-import { readUrlState, writeUrlState } from "@/lib/photos/url-state";
+import {
+  readUrlState,
+  writeUrlState,
+  type ClusterPreference,
+} from "@/lib/photos/url-state";
 
 import { BuildingsLayer } from "./buildings-layer";
 import { CoverageLayer } from "./coverage-layer";
 import { FilterBar } from "./filter-bar";
-import { PHOTO_LAYER_PREFIX } from "./layer-ids";
+import { PHOTO_LAYER_PREFIX, SELECTED_PIN_LAYER_ID } from "./layer-ids";
 import { Legend, type LegendEntry } from "./legend";
 import { PhotoHoverCard } from "./photo-hover-card";
 import { PhotoPanel } from "./photo-panel";
@@ -77,6 +81,13 @@ import { Timeline } from "./timeline";
  * height, shallow enough that pins a block back stay legible.
  */
 const PITCH_3D = 50;
+
+/**
+ * Past this many located photos, "auto" clusters. Below it every pin can show
+ * its legend color without the map turning to mush, which is the whole point
+ * of reading it unclustered.
+ */
+const AUTO_CLUSTER_THRESHOLD = 300;
 
 interface PhotoMapProps {
   photos: PlacedPhoto[];
@@ -108,11 +119,13 @@ function PhotoLayers({
   mode,
   dimension,
   companies,
+  cluster,
   asOf,
   onSelect,
 }: {
   collection: PhotoFeatureCollection;
   mode: MapMode;
+  cluster: boolean;
   dimension: GroupDimension;
   /** Company rows, when the company grouping is available */
   companies: readonly GroupEntry[] | null;
@@ -120,8 +133,17 @@ function PhotoLayers({
   asOf: number | null;
   onSelect: (id: string) => void;
 }) {
-  const { resolvedTheme } = useMap();
+  const { map, isLoaded, resolvedTheme } = useMap();
   const theme = resolvedTheme === "dark" ? "dark" : "light";
+
+  // Toggling clustering rebuilds the photo layers on top of the stack (the
+  // child's effect runs first); lift the selection ring back above them.
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+    if (map.getLayer(SELECTED_PIN_LAYER_ID)) {
+      map.moveLayer(SELECTED_PIN_LAYER_ID);
+    }
+  }, [map, isLoaded, cluster]);
 
   const pointColor = useMemo(() => {
     if (mode !== "categories" && asOf !== null) {
@@ -147,6 +169,7 @@ function PhotoLayers({
     <MapClusterLayer
       id={PHOTO_LAYER_PREFIX}
       data={collection}
+      cluster={cluster}
       pointColor={pointColor}
       // Coverage mode is about the grid; the pins stay clickable but step back.
       pointRadius={mode === "coverage" ? 5 : 7}
@@ -266,6 +289,7 @@ export function PhotoMap({
   const [mode, setMode] = useState<MapMode>("categories");
   const [buildings3d, setBuildings3d] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupDimension>("origin");
+  const [clusterPref, setClusterPref] = useState<ClusterPreference>("auto");
   const mapRef = useRef<MapRef>(null);
 
   // Everything the prerender cannot know: the query string (the shell is
@@ -282,6 +306,7 @@ export function PhotoMap({
     setMode(restored.mode);
     setBuildings3d(restored.buildings3d);
     setGroupBy(restored.groupBy);
+    setClusterPref(restored.cluster);
     setNow(Date.now());
     /* eslint-enable react-hooks/set-state-in-effect */
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -327,6 +352,13 @@ export function PhotoMap({
       ),
     [projectSpan, companies],
   );
+  // Measured against every located photo, not the filtered set, so brushing
+  // the timeline never flips the map between clustered and not.
+  const cluster =
+    clusterPref === "auto"
+      ? located.length > AUTO_CLUSTER_THRESHOLD
+      : clusterPref === "on";
+
   // A link can name a grouping this project can't answer (or can't yet, while
   // the context loads); origin stands in without rewriting the URL.
   const dimension = dimensions.includes(groupBy) ? groupBy : "origin";
@@ -456,10 +488,24 @@ export function PhotoMap({
 
   // The URL trails the live state; every writer reads the latest through refs
   // so a viewport tick can't publish a stale filter set, or vice versa.
-  const stateRef = useRef({ selectedId, filters, mode, buildings3d, groupBy });
+  const stateRef = useRef({
+    selectedId,
+    filters,
+    mode,
+    buildings3d,
+    groupBy,
+    clusterPref,
+  });
   useEffect(() => {
-    stateRef.current = { selectedId, filters, mode, buildings3d, groupBy };
-  }, [selectedId, filters, mode, buildings3d, groupBy]);
+    stateRef.current = {
+      selectedId,
+      filters,
+      mode,
+      buildings3d,
+      groupBy,
+      clusterPref,
+    };
+  }, [selectedId, filters, mode, buildings3d, groupBy, clusterPref]);
 
   const publish = useCallback((viewport: MapViewport | null) => {
     const {
@@ -468,6 +514,7 @@ export function PhotoMap({
       mode: currentMode,
       buildings3d: current3d,
       groupBy: currentGroupBy,
+      clusterPref: currentCluster,
     } = stateRef.current;
     writeUrlState({
       photoId,
@@ -476,6 +523,7 @@ export function PhotoMap({
       mode: currentMode,
       buildings3d: current3d,
       groupBy: currentGroupBy,
+      cluster: currentCluster,
     });
   }, []);
 
@@ -510,6 +558,19 @@ export function PhotoMap({
     (next: GroupDimension) => {
       setGroupBy(next);
       stateRef.current = { ...stateRef.current, groupBy: next };
+      publish(null);
+    },
+    [publish],
+  );
+
+  // The toggle always answers with an explicit choice; "auto" is only the
+  // starting point, so a viewer who turns clustering off keeps it off on any
+  // project they share the link to.
+  const updateCluster = useCallback(
+    (on: boolean) => {
+      const next: ClusterPreference = on ? "on" : "off";
+      setClusterPref(next);
+      stateRef.current = { ...stateRef.current, clusterPref: next };
       publish(null);
     },
     [publish],
@@ -668,6 +729,7 @@ export function PhotoMap({
           mode={mode}
           dimension={dimension}
           companies={companies?.entries ?? null}
+          cluster={cluster}
           asOf={asOf}
           onSelect={select}
         />
@@ -698,6 +760,9 @@ export function PhotoMap({
           onModeChange={updateMode}
           buildings3d={buildings3d}
           onBuildings3dChange={updateBuildings3d}
+          cluster={cluster}
+          clusterIsAuto={clusterPref === "auto"}
+          onClusterChange={updateCluster}
         />
       </div>
 

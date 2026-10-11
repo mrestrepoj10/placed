@@ -2052,6 +2052,12 @@ type MapClusterLayerProps<
    * components need to name these layers (hover handlers, z-ordering).
    */
   id?: string;
+  /**
+   * Group nearby points into clusters (default: true). PATCHED: upstream
+   * always clusters. Changing it rebuilds the source, since MapLibre fixes
+   * `cluster` when a GeoJSON source is created.
+   */
+  cluster?: boolean;
   /** Maximum zoom level to cluster points on (default: 14) */
   clusterMaxZoom?: number;
   /** Radius of each cluster when clustering points in pixels (default: 50) */
@@ -2093,6 +2099,7 @@ function MapClusterLayer<
 >({
   data,
   id: propId,
+  cluster = true,
   clusterMaxZoom = 14,
   clusterRadius = 50,
   clusterColors = DEFAULT_CLUSTER_COLORS,
@@ -2125,7 +2132,7 @@ function MapClusterLayer<
     map.addSource(sourceId, {
       type: "geojson",
       data,
-      cluster: true,
+      cluster,
       clusterMaxZoom,
       clusterRadius,
     });
@@ -2210,7 +2217,7 @@ function MapClusterLayer<
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, map, sourceId]);
+  }, [isLoaded, map, sourceId, cluster]);
 
   // Update source data when data prop changes (only for non-URL data)
   useEffect(() => {

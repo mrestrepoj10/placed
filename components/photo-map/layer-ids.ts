@@ -23,4 +23,7 @@ export const PHOTO_LAYER_IDS = [
  * whenever the grid is on screen.
  */
 export const COVERAGE_FILL_LAYER_ID = "coverage-fill";
+
+/** The selection ring, which has to stay above the photo layers. */
+export const SELECTED_PIN_LAYER_ID = "selected-photo-ring";
 export const COVERAGE_LINE_LAYER_ID = "coverage-line";

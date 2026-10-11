@@ -6,6 +6,7 @@ import {
   Clock,
   Globe,
   Grid3x3,
+  Group,
   Search,
   Shapes,
   Thermometer,
@@ -54,6 +55,11 @@ interface FilterBarProps {
   onModeChange: (mode: MapMode) => void;
   buildings3d: boolean;
   onBuildings3dChange: (on: boolean) => void;
+  /** Whether pins are clustered right now */
+  cluster: boolean;
+  /** True while the project's size decides, before the viewer has chosen */
+  clusterIsAuto: boolean;
+  onClusterChange: (on: boolean) => void;
 }
 
 /**
@@ -73,6 +79,9 @@ export function FilterBar({
   onModeChange,
   buildings3d,
   onBuildings3dChange,
+  cluster,
+  clusterIsAuto,
+  onClusterChange,
 }: FilterBarProps) {
   const searchId = useId();
   const availableMediaTypes = PHOTO_MEDIA_TYPES.filter(
@@ -178,6 +187,27 @@ export function FilterBar({
           );
         })}
       </ToggleGroup>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Toggle
+            variant="outline"
+            size="sm"
+            aria-label="Cluster pins"
+            pressed={cluster}
+            onPressedChange={onClusterChange}
+          >
+            <Group className="size-3.5" aria-hidden />
+            Cluster
+          </Toggle>
+        </TooltipTrigger>
+        <TooltipContent>
+          {cluster
+            ? "Nearby pins merge into counts · turn off to see every pin's legend color"
+            : "Every pin drawn in its legend color · turn on to merge nearby pins into counts"}
+          {clusterIsAuto && " (set automatically by project size)"}
+        </TooltipContent>
+      </Tooltip>
 
       <Tooltip>
         <TooltipTrigger asChild>

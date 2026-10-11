@@ -27,6 +27,7 @@ import {
  *   &3d=1&q=<title search>&cat=<a,b,c>&media=<a,b>
  *   &from=<YYYY-MM-DD>&to=<YYYY-MM-DD>
  *   &group=<phase|company>&phase=<a,b>&xco=<hidden company keys>
+ *   &cluster=<on|off>
  *
  * Every write is a `history.replaceState` — never a router push — so panning
  * and brushing stay free, and any view a user is looking at is a link they can
@@ -51,7 +52,11 @@ export interface MapUrlState {
   buildings3d: boolean;
   /** What the Groups mode colors by; the legend's arrows step through these */
   groupBy: GroupDimension;
+  /** Pin clustering; "auto" clusters only projects too big to read unclustered */
+  cluster: ClusterPreference;
 }
+
+export type ClusterPreference = "auto" | "on" | "off";
 
 export const DEFAULT_URL_STATE: MapUrlState = {
   photoId: null,
@@ -60,6 +65,7 @@ export const DEFAULT_URL_STATE: MapUrlState = {
   mode: "categories",
   buildings3d: false,
   groupBy: "origin",
+  cluster: "auto",
 };
 
 function readSet<T extends string>(
@@ -116,6 +122,7 @@ export function readUrlState(): MapUrlState {
   const mode = params.get("mode");
   const group = params.get("group");
   const hiddenCompanies = params.get("xco");
+  const cluster = params.get("cluster");
   const from = params.get("from");
   const to = params.get("to");
   const start = from ? fromDayKey(from) : null;
@@ -127,6 +134,7 @@ export function readUrlState(): MapUrlState {
     mode: isMapMode(mode) ? mode : "categories",
     buildings3d: params.get("3d") === "1",
     groupBy: isGroupDimension(group) ? group : "origin",
+    cluster: cluster === "on" || cluster === "off" ? cluster : "auto",
     filters: {
       search: params.get("q") ?? "",
       categories: readSet<PhotoCategory>(
@@ -180,6 +188,9 @@ export function writeUrlState(state: MapUrlState): void {
 
   if (state.groupBy === "origin") params.delete("group");
   else params.set("group", state.groupBy);
+
+  if (state.cluster === "auto") params.delete("cluster");
+  else params.set("cluster", state.cluster);
 
   const { search, categories, mediaTypes, start, end, phases } = state.filters;
   if (search.trim()) params.set("q", search);
