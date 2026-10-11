@@ -1,4 +1,6 @@
 import type { FeatureCollection, Point } from "geojson";
+import type { GroupResolver } from "./filters";
+import type { PhotoPhase } from "./groupings";
 import {
   hasLocation,
   photoCapturedAt,
@@ -29,6 +31,10 @@ export interface PhotoFeatureProperties {
   capturedAt?: number;
   takenAt?: number;
   createdAt?: number;
+  /** Present when the project has dates — read by the phase coloring */
+  phase?: PhotoPhase;
+  /** Present when members are known — the folded company key */
+  company?: string;
   [key: string]: unknown;
 }
 
@@ -51,6 +57,7 @@ function epochMs(iso: string | null): number | undefined {
 /** Located photos only — photos without coordinates never reach the map. */
 export function toPhotoFeatureCollection(
   photos: PlacedPhoto[],
+  groups?: GroupResolver,
 ): PhotoFeatureCollection {
   return {
     type: "FeatureCollection",
@@ -71,6 +78,8 @@ export function toPhotoFeatureCollection(
           ...(capturedAt !== null && { capturedAt }),
           ...(takenAt !== undefined && { takenAt }),
           ...(createdAt !== undefined && { createdAt }),
+          ...(groups?.phaseOf && { phase: groups.phaseOf(photo) }),
+          ...(groups?.companyOf && { company: groups.companyOf(photo) }),
         },
       };
     }),

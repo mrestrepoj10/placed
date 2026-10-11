@@ -38,6 +38,12 @@ export interface PlacedPhoto {
   takenAt: string | null;
   /** ISO datetime the record was created in the source system */
   createdAt: string;
+  /**
+   * Stable id of whoever added the photo in the source system (an Autodesk ID
+   * for ACC). The company legend resolves it against the project's members;
+   * null when the source doesn't say.
+   */
+  createdBy: string | null;
   /** WGS84 decimal degrees; null when the source has no geolocation */
   latitude: number | null;
   longitude: number | null;

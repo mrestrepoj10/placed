@@ -2,9 +2,16 @@ import { endOfDay, fromDayKey, startOfDay, toDayKey } from "./dates";
 import {
   ALL_CATEGORIES,
   ALL_MEDIA_TYPES,
+  ALL_PHASES,
   DEFAULT_FILTERS,
   type PhotoFilters,
 } from "./filters";
+import {
+  isGroupDimension,
+  PHOTO_PHASES,
+  type GroupDimension,
+  type PhotoPhase,
+} from "./groupings";
 import { isMapMode, type MapMode } from "./map-modes";
 import {
   PHOTO_CATEGORIES,
@@ -19,6 +26,7 @@ import {
  *   ?photo=<id>&c=<lng>,<lat>,<zoom>[,<pitch>[,<bearing>]]&mode=<mode>
  *   &3d=1&q=<title search>&cat=<a,b,c>&media=<a,b>
  *   &from=<YYYY-MM-DD>&to=<YYYY-MM-DD>
+ *   &group=<phase|company>&phase=<a,b>&xco=<hidden company keys>
  *
  * Every write is a `history.replaceState` — never a router push — so panning
  * and brushing stay free, and any view a user is looking at is a link they can
@@ -41,6 +49,8 @@ export interface MapUrlState {
   mode: MapMode;
   /** Extruded basemap buildings — a view, not a mode, so it composes */
   buildings3d: boolean;
+  /** What the Groups mode colors by; the legend's arrows step through these */
+  groupBy: GroupDimension;
 }
 
 export const DEFAULT_URL_STATE: MapUrlState = {
@@ -49,6 +59,7 @@ export const DEFAULT_URL_STATE: MapUrlState = {
   filters: DEFAULT_FILTERS,
   mode: "categories",
   buildings3d: false,
+  groupBy: "origin",
 };
 
 function readSet<T extends string>(
@@ -103,6 +114,8 @@ export function readUrlState(): MapUrlState {
       : null;
 
   const mode = params.get("mode");
+  const group = params.get("group");
+  const hiddenCompanies = params.get("xco");
   const from = params.get("from");
   const to = params.get("to");
   const start = from ? fromDayKey(from) : null;
@@ -113,6 +126,7 @@ export function readUrlState(): MapUrlState {
     viewport,
     mode: isMapMode(mode) ? mode : "categories",
     buildings3d: params.get("3d") === "1",
+    groupBy: isGroupDimension(group) ? group : "origin",
     filters: {
       search: params.get("q") ?? "",
       categories: readSet<PhotoCategory>(
@@ -131,6 +145,10 @@ export function readUrlState(): MapUrlState {
       // that whole day, which is what the timeline brush means by one bar.
       start: start === null ? null : startOfDay(start),
       end: end === null ? null : endOfDay(end),
+      phases: readSet<PhotoPhase>(params, "phase", PHOTO_PHASES, ALL_PHASES),
+      hiddenCompanies: new Set(
+        hiddenCompanies ? hiddenCompanies.split(",").filter(Boolean) : [],
+      ),
     },
   };
 }
@@ -160,12 +178,21 @@ export function writeUrlState(state: MapUrlState): void {
   if (state.buildings3d) params.set("3d", "1");
   else params.delete("3d");
 
-  const { search, categories, mediaTypes, start, end } = state.filters;
+  if (state.groupBy === "origin") params.delete("group");
+  else params.set("group", state.groupBy);
+
+  const { search, categories, mediaTypes, start, end, phases } = state.filters;
   if (search.trim()) params.set("q", search);
   else params.delete("q");
 
   writeSet(params, "cat", categories, PHOTO_CATEGORIES);
   writeSet(params, "media", mediaTypes, PHOTO_MEDIA_TYPES);
+  writeSet(params, "phase", phases, PHOTO_PHASES);
+  if (state.filters.hiddenCompanies.size > 0) {
+    params.set("xco", [...state.filters.hiddenCompanies].sort().join(","));
+  } else {
+    params.delete("xco");
+  }
 
   if (start === null) params.delete("from");
   else params.set("from", toDayKey(start));

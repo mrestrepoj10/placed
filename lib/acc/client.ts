@@ -2,6 +2,10 @@ import "server-only";
 
 import { fromApsHub, fromApsProject } from "@/lib/aps-data-preset";
 import type { Hub, Project } from "@/lib/project-types";
+import type {
+  ProjectContext,
+  ProjectMember,
+} from "@/lib/photos/project-context";
 import type { PhotoPage } from "@/lib/photos/types";
 import {
   isVisibleAccPhoto,
@@ -139,6 +143,94 @@ export async function listPhotoPage(
       .filter(isVisibleAccPhoto)
       .map((photo) => normalizeAccPhoto(projectId, photo)),
     nextCursor: page.pagination?.nextPost?.body?.cursorState ?? null,
+  };
+}
+
+// --- Project context (Admin API) ---
+
+interface AdminProject {
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+interface AdminProjectUser {
+  autodeskId?: string | null;
+  name?: string | null;
+  companyId?: string | null;
+  companyName?: string | null;
+}
+
+interface AdminUsersPage {
+  results?: AdminProjectUser[];
+  pagination?: { totalResults?: number };
+}
+
+const USERS_PAGE_LIMIT = 200; // Admin API maximum
+/** Enough for any real project team; a runaway loop costs nothing past it. */
+const MAX_USER_PAGES = 25;
+
+/** Null when the caller can't read it — a hidden legend, not an error. */
+async function optional<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof AccApiError && [401, 403, 404].includes(error.status)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function listProjectMembers(
+  token: string,
+  projectId: string,
+): Promise<Record<string, ProjectMember>> {
+  const members: Record<string, ProjectMember> = {};
+  for (let page = 0; page < MAX_USER_PAGES; page += 1) {
+    const offset = page * USERS_PAGE_LIMIT;
+    const response = await accFetch<AdminUsersPage>(
+      token,
+      `/construction/admin/v1/projects/${projectId}/users?limit=${USERS_PAGE_LIMIT}&offset=${offset}`,
+    );
+    const results = response.results ?? [];
+    for (const user of results) {
+      if (!user.autodeskId) continue;
+      members[user.autodeskId] = {
+        name: user.name ?? null,
+        companyId: user.companyId ?? null,
+        companyName: user.companyName ?? null,
+      };
+    }
+    const total = response.pagination?.totalResults ?? 0;
+    if (results.length < USERS_PAGE_LIMIT || offset + results.length >= total) {
+      break;
+    }
+  }
+  return members;
+}
+
+/**
+ * The project dates and member list behind the phase and company legends.
+ * Each half is independent and optional: a viewer who may read the project
+ * but not its members still gets phases. Requires an `account:read` token.
+ */
+export async function getProjectContext(
+  token: string,
+  projectId: string,
+): Promise<ProjectContext> {
+  const [project, members] = await Promise.all([
+    optional(
+      accFetch<AdminProject>(
+        token,
+        `/construction/admin/v1/projects/${projectId}?fields=startDate,endDate`,
+      ),
+    ),
+    optional(listProjectMembers(token, projectId)),
+  ]);
+  return {
+    startDate: project?.startDate ?? null,
+    endDate: project?.endDate ?? null,
+    members,
   };
 }
 

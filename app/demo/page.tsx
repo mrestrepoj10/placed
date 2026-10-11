@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { PhotoMap } from "@/components/photo-map/photo-map";
-import { DEMO_PHOTOS, DEMO_PROJECT } from "@/lib/demo/photos";
+import { DEMO_CONTEXT, DEMO_PHOTOS, DEMO_PROJECT } from "@/lib/demo/photos";
 
 export const metadata: Metadata = {
   title: "Demo",
@@ -18,6 +18,7 @@ export default function DemoPage() {
     <PhotoMap
       photos={DEMO_PHOTOS}
       projectName={DEMO_PROJECT.name}
+      context={DEMO_CONTEXT}
       fallbackCenter={[-97.705, 30.2995]}
       fallbackZoom={14}
     />

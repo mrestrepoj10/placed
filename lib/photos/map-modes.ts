@@ -12,8 +12,9 @@ export const MAP_MODE_META: Record<
   { label: string; description: string }
 > = {
   categories: {
-    label: "Origin",
-    description: "Points colored by the module the photo came from",
+    label: "Groups",
+    description:
+      "Points colored by origin, project phase or company — step through them with the legend's arrows",
   },
   activity: {
     label: "Recency",

@@ -26,14 +26,15 @@ import { disconnectAction } from "./actions";
 export const metadata: Metadata = { title: "Projects" };
 
 /**
- * What placed knows about the grant: one data:read grant per visitor and
- * never a profile (that would need a second scope), so the card shows the
- * provider and scope, not an account.
+ * What placed knows about the grant: one read-only grant per visitor and
+ * never a profile, so the card shows the provider and scopes, not an account.
+ * Visitors who connected before `account:read` was added still show both;
+ * their phase and company legends just stay hidden until they reconnect.
  */
 const autodeskGrant: OAuthConnection = {
   provider: apsProvider,
   status: "connected",
-  scopes: ["data:read"],
+  scopes: ["data:read", "account:read"],
 };
 
 /** Past this many projects, searching a picker beats scanning the list. */
