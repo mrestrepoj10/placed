@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { AccApiError, getProjectContext } from "@/lib/acc/client";
+import { withAccToken } from "@/lib/acc/with-token";
 import {
   ACCOUNT_SCOPES,
   AuthorizationRequiredError,
   ConnectNotConfiguredError,
-  getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
 import { EMPTY_PROJECT_CONTEXT } from "@/lib/photos/project-context";
@@ -35,8 +35,11 @@ export async function GET(
   }
 
   try {
-    const token = await getAccessToken(visitorId, ACCOUNT_SCOPES);
-    const project = await getProjectContext(token, projectId);
+    const project = await withAccToken(
+      visitorId,
+      (token) => getProjectContext(token, projectId),
+      ACCOUNT_SCOPES,
+    );
     return NextResponse.json({ context: project, access: "granted" });
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {

@@ -73,27 +73,30 @@ function isConfigurationError(error: unknown): boolean {
 export async function getAccessToken(
   visitorId: string,
   scopes?: readonly string[],
+  options: { forceRefresh?: boolean } = {},
 ): Promise<string> {
-  if (scopes) return requestToken(visitorId, scopes);
+  if (scopes) return requestToken(visitorId, scopes, options);
   // Data API callers work with either grant: the current one first, then the
   // legacy `data:read`-only grant, so nobody has to reconnect for photos.
   try {
-    return await requestToken(visitorId, CONSENT_SCOPES);
+    return await requestToken(visitorId, CONSENT_SCOPES, options);
   } catch (error) {
     if (!(error instanceof AuthorizationRequiredError)) throw error;
-    return requestToken(visitorId, LEGACY_SCOPES);
+    return requestToken(visitorId, LEGACY_SCOPES, options);
   }
 }
 
 async function requestToken(
   visitorId: string,
   scopes: readonly string[],
+  { forceRefresh = false }: { forceRefresh?: boolean },
 ): Promise<string> {
   try {
     const { token } = await tokens.getToken({
       provider: "aps",
       subject: { type: "user", id: visitorId },
       scopes: [...scopes],
+      ...(forceRefresh && { forceRefresh: true }),
     });
     return token;
   } catch (error) {

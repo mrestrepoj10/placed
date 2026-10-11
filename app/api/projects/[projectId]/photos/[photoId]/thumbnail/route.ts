@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { AccApiError, getPhotoAssetCandidates } from "@/lib/acc/client";
+import { withAccToken } from "@/lib/acc/with-token";
 import {
   AuthorizationRequiredError,
-  getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
 
@@ -27,8 +27,13 @@ export async function GET(
   if (!visitorId) return new NextResponse(null, { status: 401 });
 
   try {
-    const token = await getAccessToken(visitorId);
-    const candidates = await getPhotoAssetCandidates(token, projectId, photoId);
+    // Only the listing call can reveal a stale token; the asset fetches below
+    // reuse whichever token it succeeded with.
+    let token = "";
+    const candidates = await withAccToken(visitorId, (fresh) => {
+      token = fresh;
+      return getPhotoAssetCandidates(fresh, projectId, photoId);
+    });
 
     for (const candidate of candidates) {
       const asset = await fetch(candidate.url, {

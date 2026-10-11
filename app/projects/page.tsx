@@ -11,13 +11,13 @@ import { ConnectionCard } from "@/components/ui/connection-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { APS_CLIENT_ID } from "@/lib/acc/app-id";
 import { listProjects, type AccProjectCatalog } from "@/lib/acc/client";
+import { withAccToken } from "@/lib/acc/with-token";
 import { apsProvider } from "@/lib/aps-oauth-preset";
 import type { OAuthConnection } from "@/lib/oauth-types";
 import { groupProjectsByHub } from "@/lib/project-types";
 import {
   AuthorizationRequiredError,
   ConnectNotConfiguredError,
-  getAccessToken,
 } from "@/lib/auth/access-token";
 import { getVisitorId } from "@/lib/auth/visitor";
 
@@ -80,8 +80,7 @@ async function ProjectList() {
 
   let catalog: AccProjectCatalog;
   try {
-    const token = await getAccessToken(visitorId);
-    catalog = await listProjects(token);
+    catalog = await withAccToken(visitorId, listProjects);
   } catch (error) {
     if (error instanceof AuthorizationRequiredError) {
       return <ConnectCard returnTo="/projects" />;
