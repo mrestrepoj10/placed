@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import { ConnectCard, SetupCard } from "@/components/connect-card";
 import { CopyField } from "@/components/copy-field";
 import { ProjectSwitcher } from "@/components/project-switcher";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { ConnectionCard } from "@/components/ui/connection-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { APS_CLIENT_ID } from "@/lib/acc/app-id";
@@ -51,6 +52,7 @@ export default function ProjectsPage() {
           <span className="mx-2 text-muted-foreground/60">/</span>
           projects
         </h1>
+        <ThemeSwitcher className="self-center" />
       </header>
       <Suspense fallback={<ProjectsSkeleton />}>
         <ProjectList />

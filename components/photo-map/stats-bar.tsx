@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import {
   Sheet,
   SheetContent,
@@ -62,6 +63,7 @@ export function StatsBar({
           </Link>
           <span className="mx-1.5 text-muted-foreground/60">/</span>
           {projectSwitcher ?? <span>{projectName}</span>}
+          <ThemeSwitcher className="ml-auto pl-3" />
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {progress && (

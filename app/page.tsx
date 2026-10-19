@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 
 import { CopyField } from "@/components/copy-field";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { APS_CLIENT_ID } from "@/lib/acc/app-id";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META, categoryCssColor } from "@/lib/photos/categories";
@@ -107,15 +108,18 @@ export default function LandingPage() {
         <span className="font-heading text-sm font-semibold tracking-tight">
           placed
         </span>
-        <a
-          href={REPO_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <GithubIcon className="size-4" aria-hidden />
-          GitHub
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <GithubIcon className="size-4" aria-hidden />
+            GitHub
+          </a>
+          <ThemeSwitcher />
+        </div>
       </header>
 
       <section className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
