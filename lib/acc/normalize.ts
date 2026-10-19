@@ -78,7 +78,9 @@ export function normalizeAccPhoto(
     createdBy: photo.createdBy?.trim() || null,
     latitude: photo.latitude ?? null,
     longitude: photo.longitude ?? null,
-    thumbnailUrl: `/api/projects/${projectId}/photos/${photo.id}/thumbnail`,
+    // `v` bumps when the route's answer changes for the same photo, so
+    // browsers drop thumbnails cached under the old behavior (max-age 1h).
+    thumbnailUrl: `/api/projects/${projectId}/photos/${photo.id}/thumbnail?v=2`,
     sourceUrl: buildSourceUrl(projectId, photo.id),
   };
 }

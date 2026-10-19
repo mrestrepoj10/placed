@@ -253,20 +253,23 @@ export async function getPhotoAssetCandidates(
   projectId: string,
   photoId: string,
 ): Promise<PhotoAssetCandidate[]> {
-  const result = await accFetch<PhotosFilterResponse>(
-    token,
-    `/construction/photos/v1/projects/${projectId}/photos:filter`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        filter: { id: [photoId] },
-        include: ["signedUrls"],
-        limit: 1,
-      }),
-    },
-  );
-  const photo = result.results[0];
-  if (!photo) return [];
+  // The single-photo endpoint, not photos:filter — in practice the filter's
+  // `id` facet is ignored and the first page comes back, which served one
+  // photo's thumbnail for every pin.
+  let photo: AccPhoto;
+  try {
+    photo = await accFetch<AccPhoto>(
+      token,
+      `/construction/photos/v1/projects/${projectId}/photos/${photoId}?include=signedUrls`,
+    );
+  } catch (error) {
+    if (error instanceof AccApiError && [404, 410].includes(error.status)) {
+      return [];
+    }
+    throw error;
+  }
+  // Never hand back another photo's asset under this id.
+  if (photo.id !== photoId) return [];
 
   const candidates: Array<PhotoAssetCandidate | null> = [
     photo.signedUrls?.thumbnailUrl
