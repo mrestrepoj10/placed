@@ -22,6 +22,8 @@ import {
 
 const APS_BASE = "https://developer.api.autodesk.com";
 const PAGE_LIMIT = 50; // Photos API maximum
+/** Pages of same-titled photos to search for one id before giving up. */
+const MAX_TITLE_PAGES = 4;
 
 export class AccApiError extends Error {
   constructor(
@@ -253,40 +255,46 @@ export async function getPhotoAssetCandidates(
   projectId: string,
   photoId: string,
 ): Promise<PhotoAssetCandidate[]> {
-  // The single-photo endpoint, not photos:filter — in practice the filter's
-  // `id` facet is ignored and the first page comes back, which served one
-  // photo's thumbnail for every pin.
-  let photo: AccPhoto;
+  const base = `/construction/photos/v1/projects/${projectId}`;
+
+  // Measured against ACC, not taken from the docs: photos:filter ignores its
+  // `id` facet (it returns the first page, which once served one photo's
+  // thumbnail for every pin), and the single-photo GET answers with the
+  // title but no id or asset URLs. The title facet does filter, so: read the
+  // title by id, search by title, and keep only the result with this id —
+  // titles aren't unique, hence the paging.
+  let title: string | null | undefined;
   try {
-    photo = await accFetch<AccPhoto>(
+    ({ title } = await accFetch<Pick<AccPhoto, "title">>(
       token,
-      `/construction/photos/v1/projects/${projectId}/photos/${photoId}?include=signedUrls`,
-    );
+      `${base}/photos/${photoId}`,
+    ));
   } catch (error) {
-    console.warn("[thumb-debug] get failed", photoId, (error as Error).message);
     if (error instanceof AccApiError && [404, 410].includes(error.status)) {
       return [];
     }
     throw error;
   }
-  const base = `/construction/photos/v1/projects/${projectId}`;
-  const probe = async (label: string, path: string, init?: RequestInit) => {
-    try {
-      const body = await accFetch<Record<string, unknown>>(token, path, init);
-      const first = (body.results as Record<string, unknown>[] | undefined)?.[0] ?? body;
-      console.warn("[thumb-debug]", label, Object.keys(body).join(","), "| id:", String(first.id), "| title:", String(first.title).slice(0, 30), "| signed:", Boolean((first.signedUrls as Record<string, unknown> | undefined)?.thumbnailUrl), "| urls:", JSON.stringify(first.urls).slice(0, 80));
-    } catch (error) {
-      console.warn("[thumb-debug]", label, "failed", (error as Error).message);
-    }
+  if (!title) return [];
+
+  let photo: AccPhoto | undefined;
+  let body: object = {
+    filter: { title },
+    include: ["signedUrls"],
+    limit: PAGE_LIMIT,
   };
-  await probe("get-include[]", `${base}/photos/${photoId}?include[]=signedUrls`);
-  await probe("get-plain", `${base}/photos/${photoId}`);
-  await probe("filter-id", `${base}/photos:filter`, { method: "POST", body: JSON.stringify({ filter: { id: [photoId] }, include: ["signedUrls"], limit: 2 }) });
-  await probe("filter-ids", `${base}/photos:filter`, { method: "POST", body: JSON.stringify({ filter: { ids: [photoId] }, include: ["signedUrls"], limit: 2 }) });
-  await probe("filter-title", `${base}/photos:filter`, { method: "POST", body: JSON.stringify({ filter: { title: photo.title }, include: ["signedUrls"], limit: 2 }) });
-  console.warn("[thumb-debug] got", photoId, JSON.stringify(photo).slice(0, 300));
-  // Never hand back another photo's asset under this id.
-  if (photo.id !== photoId) return [];
+  for (let page = 0; page < MAX_TITLE_PAGES && !photo; page += 1) {
+    const result = await accFetch<PhotosFilterResponse>(
+      token,
+      `${base}/photos:filter`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    photo = result.results.find((candidate) => candidate.id === photoId);
+    const cursor = result.pagination?.nextPost?.body?.cursorState;
+    if (!cursor) break;
+    body = { cursorState: cursor };
+  }
+  if (!photo) return [];
 
   const candidates: Array<PhotoAssetCandidate | null> = [
     photo.signedUrls?.thumbnailUrl
