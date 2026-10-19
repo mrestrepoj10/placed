@@ -263,11 +263,13 @@ export async function getPhotoAssetCandidates(
       `/construction/photos/v1/projects/${projectId}/photos/${photoId}?include=signedUrls`,
     );
   } catch (error) {
+    console.warn("[thumb-debug] get failed", photoId, (error as Error).message);
     if (error instanceof AccApiError && [404, 410].includes(error.status)) {
       return [];
     }
     throw error;
   }
+  console.warn("[thumb-debug] got", photoId, JSON.stringify(photo).slice(0, 600));
   // Never hand back another photo's asset under this id.
   if (photo.id !== photoId) return [];
 
