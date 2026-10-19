@@ -269,7 +269,22 @@ export async function getPhotoAssetCandidates(
     }
     throw error;
   }
-  console.warn("[thumb-debug] got", photoId, JSON.stringify(photo).slice(0, 600));
+  const base = `/construction/photos/v1/projects/${projectId}`;
+  const probe = async (label: string, path: string, init?: RequestInit) => {
+    try {
+      const body = await accFetch<Record<string, unknown>>(token, path, init);
+      const first = (body.results as Record<string, unknown>[] | undefined)?.[0] ?? body;
+      console.warn("[thumb-debug]", label, Object.keys(body).join(","), "| id:", String(first.id), "| title:", String(first.title).slice(0, 30), "| signed:", Boolean((first.signedUrls as Record<string, unknown> | undefined)?.thumbnailUrl), "| urls:", JSON.stringify(first.urls).slice(0, 80));
+    } catch (error) {
+      console.warn("[thumb-debug]", label, "failed", (error as Error).message);
+    }
+  };
+  await probe("get-include[]", `${base}/photos/${photoId}?include[]=signedUrls`);
+  await probe("get-plain", `${base}/photos/${photoId}`);
+  await probe("filter-id", `${base}/photos:filter`, { method: "POST", body: JSON.stringify({ filter: { id: [photoId] }, include: ["signedUrls"], limit: 2 }) });
+  await probe("filter-ids", `${base}/photos:filter`, { method: "POST", body: JSON.stringify({ filter: { ids: [photoId] }, include: ["signedUrls"], limit: 2 }) });
+  await probe("filter-title", `${base}/photos:filter`, { method: "POST", body: JSON.stringify({ filter: { title: photo.title }, include: ["signedUrls"], limit: 2 }) });
+  console.warn("[thumb-debug] got", photoId, JSON.stringify(photo).slice(0, 300));
   // Never hand back another photo's asset under this id.
   if (photo.id !== photoId) return [];
 
