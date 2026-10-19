@@ -49,7 +49,11 @@ import {
 } from "@/lib/photos/groupings";
 import type { MapMode } from "@/lib/photos/map-modes";
 import type { ProjectContext } from "@/lib/photos/project-context";
-import { recencyColorExpression } from "@/lib/photos/recency";
+import {
+  recencyColorExpression,
+  recencyFrame,
+  type RecencyBand,
+} from "@/lib/photos/recency";
 import {
   hasLocation,
   photoCapturedAt,
@@ -121,11 +125,13 @@ function PhotoLayers({
   companies,
   cluster,
   asOf,
+  bands,
   onSelect,
 }: {
   collection: PhotoFeatureCollection;
   mode: MapMode;
   cluster: boolean;
+  bands: readonly RecencyBand[];
   dimension: GroupDimension;
   /** Company rows, when the company grouping is available */
   companies: readonly GroupEntry[] | null;
@@ -146,8 +152,8 @@ function PhotoLayers({
   }, [map, isLoaded, cluster]);
 
   const pointColor = useMemo(() => {
-    if (mode !== "categories" && asOf !== null) {
-      return recencyColorExpression(theme, asOf);
+    if (mode !== "categories" && asOf !== null && bands.length > 0) {
+      return recencyColorExpression(theme, asOf, bands);
     }
     if (dimension === "phase") {
       return groupColorExpression("phase", PHASE_ENTRIES, theme);
@@ -156,7 +162,7 @@ function PhotoLayers({
       return groupColorExpression("company", companies, theme);
     }
     return categoryColorExpression(theme);
-  }, [mode, dimension, companies, theme, asOf]);
+  }, [mode, dimension, companies, theme, asOf, bands]);
   const clusterColors = useMemo<[string, string, string]>(
     () =>
       theme === "dark"
@@ -471,10 +477,25 @@ export function PhotoMap({
     [visible, groups],
   );
 
-  // Recency is measured from the brush's right edge when there is one, so
-  // playing the timeline back re-ages the map to each moment in turn.
-  const asOf = filters.end ?? now;
-  const asOfFromBrush = filters.end !== null;
+  // How recency reads for this project: the live 3/7-day scale from now, or,
+  // when every photo is history, a wider scale counted back from the newest
+  // photo. Null until the client has read the clock.
+  const frame = useMemo(() => {
+    if (now === null) return null;
+    const captures: number[] = [];
+    for (const photo of located) {
+      const at = photoCapturedAt(photo);
+      if (at !== null) captures.push(at);
+    }
+    return recencyFrame(captures, now);
+  }, [located, now]);
+
+  // The brush's right edge wins when there is one, so playing the timeline
+  // back re-ages the map to each moment in turn.
+  const asOf = filters.end ?? frame?.defaultAsOf ?? null;
+  const asOfSource: "brush" | "latest" | "now" =
+    filters.end !== null ? "brush" : frame?.fromLatestPhoto ? "latest" : "now";
+  const recencyBands = frame?.scale.bands ?? null;
 
   const coverage = useMemo(
     () =>
@@ -723,8 +744,11 @@ export function PhotoMap({
         {/* First in the tree so a fresh style gets it at the bottom; the layer
             anchors itself beneath the rest when it mounts later. */}
         {buildings3d && <BuildingsLayer />}
-        {coverage && <CoverageLayer grid={coverage} />}
+        {coverage && recencyBands && (
+          <CoverageLayer grid={coverage} bands={recencyBands} />
+        )}
         <PhotoLayers
+          bands={recencyBands ?? []}
           collection={collection}
           mode={mode}
           dimension={dimension}
@@ -781,7 +805,8 @@ export function PhotoMap({
         hiddenOrigins={hiddenOrigins}
         coverage={coverage}
         asOf={asOf}
-        asOfFromBrush={asOfFromBrush}
+        asOfSource={asOfSource}
+        recencyBands={recencyBands}
         // Clears the timeline, which stacks a zoomed plot, its date axis and
         // the brush strip.
         className="absolute bottom-52 left-3 z-10"

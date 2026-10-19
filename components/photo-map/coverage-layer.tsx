@@ -5,7 +5,11 @@ import type { ExpressionSpecification, GeoJSONSource } from "maplibre-gl";
 
 import { useMap } from "@/components/ui/map";
 import type { CoverageGrid } from "@/lib/photos/coverage";
-import { coverageColorExpression, NO_COVERAGE } from "@/lib/photos/recency";
+import {
+  coverageColorExpression,
+  NO_COVERAGE,
+  type RecencyBand,
+} from "@/lib/photos/recency";
 
 import {
   COVERAGE_FILL_LAYER_ID as FILL_LAYER_ID,
@@ -23,7 +27,14 @@ const SOURCE_ID = "coverage-source";
  * Empty cells are the point of the layer, so they get no fill at all and a
  * visible outline — a hole you can see the basemap through.
  */
-export function CoverageLayer({ grid }: { grid: CoverageGrid }) {
+export function CoverageLayer({
+  grid,
+  bands,
+}: {
+  grid: CoverageGrid;
+  /** The active recency scale's bands — the cells are colored on the same one */
+  bands: readonly RecencyBand[];
+}) {
   const { map, isLoaded, resolvedTheme } = useMap();
   const theme = resolvedTheme === "dark" ? "dark" : "light";
   const cells = grid.cells;
@@ -74,7 +85,7 @@ export function CoverageLayer({ grid }: { grid: CoverageGrid }) {
   useEffect(() => {
     if (!map || !isLoaded || !map.getLayer(FILL_LAYER_ID)) return;
     const isEmpty: ExpressionSpecification = ["==", ["get", "count"], 0];
-    const color = coverageColorExpression(theme);
+    const color = coverageColorExpression(theme, bands);
     const whenEmpty = <T,>(empty: T, covered: T): ExpressionSpecification =>
       ["case", isEmpty, empty, covered] as unknown as ExpressionSpecification;
 
@@ -90,7 +101,7 @@ export function CoverageLayer({ grid }: { grid: CoverageGrid }) {
     );
     map.setPaintProperty(LINE_LAYER_ID, "line-width", whenEmpty(1, 0.5));
     map.setPaintProperty(LINE_LAYER_ID, "line-opacity", whenEmpty(0.5, 0.75));
-  }, [map, isLoaded, theme]);
+  }, [map, isLoaded, theme, bands]);
 
   return null;
 }

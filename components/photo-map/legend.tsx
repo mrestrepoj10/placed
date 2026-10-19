@@ -13,8 +13,8 @@ import type { MapMode } from "@/lib/photos/map-modes";
 import {
   NO_COVERAGE,
   noCoverageCssColor,
-  RECENCY_BANDS,
   recencyCssColor,
+  type RecencyBand,
 } from "@/lib/photos/recency";
 import { cn } from "@/lib/utils";
 
@@ -46,8 +46,13 @@ interface LegendProps {
   coverage: CoverageGrid | null;
   /** The instant ages are measured from; null before the clock is read */
   asOf: number | null;
-  /** True when the timeline brush set `asOf`, false when it's simply now */
-  asOfFromBrush: boolean;
+  /**
+   * Where `asOf` came from: the timeline brush, the newest photo (an archive
+   * project), or the clock
+   */
+  asOfSource: "brush" | "latest" | "now";
+  /** The active recency scale; null before the clock is read */
+  recencyBands: readonly RecencyBand[] | null;
   className?: string;
 }
 
@@ -129,7 +134,8 @@ export function Legend({
   hiddenOrigins,
   coverage,
   asOf,
-  asOfFromBrush,
+  asOfSource,
+  recencyBands,
   className,
 }: LegendProps) {
   if (mode === "categories") {
@@ -203,9 +209,13 @@ export function Legend({
   }
 
   const hiddenCategories = hiddenOrigins;
-  const asOfLabel = `as of ${
-    asOfFromBrush && asOf !== null ? asOfFormat.format(asOf) : "today"
-  }`;
+  if (!recencyBands) return null;
+  const asOfLabel =
+    asOf === null || asOfSource === "now"
+      ? "as of today"
+      : asOfSource === "latest"
+        ? `as of the latest photo, ${asOfFormat.format(asOf)}`
+        : `as of ${asOfFormat.format(asOf)}`;
   const caption =
     mode === "coverage" && coverage
       ? `${Math.round(coverage.cellMeters)} m cells · ${coverage.coveredCells.toLocaleString("en-US")} of ${coverage.totalCells.toLocaleString("en-US")} covered · ${asOfLabel}`
@@ -222,7 +232,7 @@ export function Legend({
       className={className}
     >
       <ul className="pb-1">
-        {RECENCY_BANDS.map((band) => (
+        {recencyBands.map((band) => (
           <li
             key={band.id}
             className="flex items-center gap-2 px-3 py-1 text-sm"
